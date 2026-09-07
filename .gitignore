@@ -1,0 +1,17 @@
+# Build output
+bin/
+
+# Local data and uploads
+data/uploads/
+
+# Local environment secrets
+.envrc
+
+# Go
+vendor/
+*.test
+*.out
+
+# Editor
+.idea/
+.vscode/

@@ -1,0 +1,1 @@
+export POOLING_DB_DSN=postgres://pooling:pa55word@localhost:5432/pooling?sslmode=disable
