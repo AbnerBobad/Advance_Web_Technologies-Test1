@@ -32,18 +32,15 @@ Select image → POST /v1/images → 202 Accepted + status URL
 - [golang-migrate](https://github.com/golang-migrate/migrate) CLI (`migrate`)
 - A database named `pooling` with a role `pooling` (password `pa55word`)
 
-The connection string is read from `POOLING_DB_DSN`, which your shell profile
-(and `.envrc`) exports:
+The connection string is exported by your shell profile `~/.profile` (the
+Makefile and application read it from the environment and never hardcode it):
 
 ```sh
-export POOLING_DB_DSN='postgres://pooling:pa55word@localhost:5432/pooling?sslmode=disable'
+export POOLING_DB_DSN='postgres://pooling:pa55word@localhost/pooling?sslmode=disable'
 ```
 
-Create the environment file (already present locally, gitignored):
-
-```sh
-cp .envrc.example .envrc
-```
+`.envrc`/`.envrc.example` hold the same value and are optional for
+[direnv](https://direnv.net) users; `make` does not read them.
 
 ## Setup
 

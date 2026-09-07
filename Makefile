@@ -1,14 +1,16 @@
 # ImageLab Makefile. Run `make help` to see available targets.
-# Secrets-free: .envrc is gitignored and only provides DSN values locally.
+# The PostgreSQL connection string is NOT hardcoded here: it is exported by
+# the shell profile and must already be present in the environment, e.g.
+#   ~/.profile:  export POOLING_DB_DSN='postgres://pooling:pa55word@localhost/pooling?sslmode=disable'
 
--include .envrc
-
-# ---------------------------------------------------------------------------
+# ==================================================================================== #
 # CONNECTION
-# ---------------------------------------------------------------------------
+# ==================================================================================== #
 
-# POOLING_DB_DSN comes from .profile/.envrc (defaults to the local dev DSN).
-POOLING_DB_DSN ?= postgres://pooling:pa55word@localhost:5432/pooling?sslmode=disable
+## require-dsn: fail with guidance if POOLING_DB_DSN is not in the environment
+.PHONY: require-dsn
+require-dsn:
+	@test -n "$(POOLING_DB_DSN)" || (echo 'error: POOLING_DB_DSN is not set.'; echo; echo 'Add this line to ~/.profile:'; echo "  export POOLING_DB_DSN='postgres://pooling:pa55word@localhost/pooling?sslmode=disable'"; echo; echo 'Then open a new shell (or run: . ~/.profile) and try again.'; exit 1)
 
 # Migrations are tracked inside the imagelab schema because the pooling role
 # cannot write to the shared public schema (PostgreSQL 15+ default).
@@ -32,15 +34,15 @@ confirm:
 # DEVELOPMENT
 # ==================================================================================== #
 
-## run/api: run the ImageLab application
-.PHONY: run/api
-run/api:
-	go run ./cmd/api -db-dsn=${POOLING_DB_DSN}
+## run: run the ImageLab application (uses POOLING_DB_DSN from the environment)
+.PHONY: run
+run: require-dsn
+	go run ./cmd/api -db-dsn="$(POOLING_DB_DSN)"
 
 ## db/psql: connect to the database using psql
 .PHONY: db/psql
-db/psql:
-	psql ${POOLING_DB_DSN}
+db/psql: require-dsn
+	psql "$(POOLING_DB_DSN)"
 
 ## db/migrations/new name=$1: create a new database migration pair
 .PHONY: db/migrations/new
@@ -50,15 +52,15 @@ db/migrations/new:
 
 ## db/migrations/up: apply all up database migrations
 .PHONY: db/migrations/up
-db/migrations/up: confirm
+db/migrations/up: require-dsn confirm
 	@echo 'Running up migrations...'
-	migrate -path ./migrations -database ${MIGRATE_DB_URL} up
+	migrate -path ./migrations -database "$(MIGRATE_DB_URL)" up
 
 ## db/migrations/down: roll back the last database migration
 .PHONY: db/migrations/down
-db/migrations/down: confirm
+db/migrations/down: require-dsn confirm
 	@echo 'Rolling back last migration...'
-	migrate -path ./migrations -database ${MIGRATE_DB_URL} down 1
+	migrate -path ./migrations -database "$(MIGRATE_DB_URL)" down 1
 
 # ==================================================================================== #
 # QUALITY CONTROL

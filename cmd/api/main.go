@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	defaultDSN      = "postgres://pooling:pa55word@localhost:5432/pooling?sslmode=disable"
+	defaultDSN      = "postgres://pooling:pa55word@localhost/pooling?sslmode=disable"
 	defaultUpload   = "data/uploads"
 	defaultFrontend = "frontend"
 )
