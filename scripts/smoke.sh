@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 # Smoke-test for the ImageLab Version 1 Week 1 acceptance path.
-# Requires a running server (default http://localhost:8080) and test assets.
+# Requires a running server (default http://localhost:8080). Test assets are
+# generated with the Go standard library (scripts/gen_assets.go).
 set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(dirname "$SCRIPT_DIR")"
+cd "$ROOT_DIR"
 
 BASE="${BASE:-http://localhost:8080}"
 WORK="$(mktemp -d)"
@@ -22,18 +27,7 @@ check() {
 }
 
 echo "creating test assets in $WORK"
-python3 - "$WORK" <<'PY'
-import sys
-from PIL import Image
-work = sys.argv[1]
-Image.new('RGB', (1200, 800), (30, 90, 200)).save(work + '/photo.png')
-Image.new('RGB', (1200, 800), (30, 90, 200)).save(work + '/photo.jpg', 'JPEG')
-open(work + '/fake.png', 'w').write('this is not an image')
-with open(work + '/big.bin', 'wb') as f:
-    f.write(b'\0' * (11 * 1024 * 1024))
-data = open(work + '/photo.jpg', 'rb').read()
-open(work + '/broken.jpg', 'wb').write(data[:400])
-PY
+go run ./scripts/gen_assets.go "$WORK"
 
 echo "1) static frontend served"
 check "GET / is 200" 200 "$(curl -s -o /dev/null -w '%{http_code}' "$BASE/")"
