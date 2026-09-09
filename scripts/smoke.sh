@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 # Smoke-test for the ImageLab Version 1 Week 1 acceptance path.
-# Requires a running server (default http://localhost:8080) and test assets.
+# Requires a running server (default http://localhost:8080). Test assets are
+# generated with the Go standard library (scripts/gen_assets.go).
 set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(dirname "$SCRIPT_DIR")"
+cd "$ROOT_DIR"
 
 BASE="${BASE:-http://localhost:8080}"
 WORK="$(mktemp -d)"
