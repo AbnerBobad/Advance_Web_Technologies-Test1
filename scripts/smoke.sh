@@ -26,6 +26,19 @@ check() {
   fi
 }
 
+# echo "creating test assets in $WORK"
+# python3 - "$WORK" <<'PY'
+# import sys
+# from PIL import Image
+# work = sys.argv[1]
+# Image.new('RGB', (1200, 800), (30, 90, 200)).save(work + '/photo.png')
+# Image.new('RGB', (1200, 800), (30, 90, 200)).save(work + '/photo.jpg', 'JPEG')
+# open(work + '/fake.png', 'w').write('this is not an image')
+# with open(work + '/big.bin', 'wb') as f:
+#     f.write(b'\0' * (11 * 1024 * 1024))
+# data = open(work + '/photo.jpg', 'rb').read()
+# open(work + '/broken.jpg', 'wb').write(data[:400])
+# PY
 echo "creating test assets in $WORK"
 go run ./scripts/gen_assets.go "$WORK"
 

@@ -47,9 +47,6 @@ type application struct {
 }
 
 func main() {
-	// -----------------------------------------------------------------
-	// Configuration
-	// -----------------------------------------------------------------
 	var cfg config
 
 	flag.IntVar(&cfg.port, "port", 8080, "API server port")
@@ -67,13 +64,8 @@ func main() {
 		cfg.db.dsn = defaultDSN
 	}
 
-	// -----------------------------------------------------------------
-	// Dependencies
-	// -----------------------------------------------------------------
-	// Structured logger writing to stdout.
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	// Open the PostgreSQL connection pool.
 	db, err := openDB(cfg)
 	if err != nil {
 		logger.Error(err.Error())
@@ -83,14 +75,12 @@ func main() {
 
 	logger.Info("database connection pool established")
 
-	// Local filesystem store for uploaded originals (and later variants).
 	fileStore, err := files.NewStore(cfg.uploadDir)
 	if err != nil {
 		logger.Error(err.Error())
 		os.Exit(1)
 	}
 
-	// Build the application with the data models wired to the pool.
 	app := &application{
 		config: cfg,
 		logger: logger,
@@ -98,7 +88,6 @@ func main() {
 		images: fileStore,
 	}
 
-	// Block until the HTTP server shuts down gracefully, then exit.
 	err = app.serve()
 	if err != nil {
 		logger.Error(err.Error())
@@ -118,8 +107,6 @@ func openDB(cfg config) (*sql.DB, error) {
 	db.SetMaxIdleConns(cfg.db.maxIdleConns)
 	db.SetConnMaxIdleTime(cfg.db.maxIdleTime)
 
-	// Ping with a timeout so startup fails fast when the DB is unavailable
-	// instead of hanging on the default connection timeout.
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 

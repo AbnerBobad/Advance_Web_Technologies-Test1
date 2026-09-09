@@ -121,6 +121,8 @@ func (app *application) createImageHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	app.logger.Info("job created", "job_id", job.ID, "image_id", image.ID, "status", job.Status)
+
 	statusURL := fmt.Sprintf("/v1/jobs/%d", job.ID)
 	headers := make(http.Header)
 	headers.Set("Location", statusURL)
