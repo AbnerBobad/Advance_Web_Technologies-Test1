@@ -15,7 +15,7 @@
   --accent-dim: #5e8fa6;
   --accent-soft: rgba(123, 168, 189, 0.08);
   --accent-medium: rgba(123, 168, 189, 0.14);
-  --accent-strong: #6a98ae;
+  --accent-strong: #3a6274;
   --success: #73b88d;
   --success-soft: rgba(115, 184, 141, 0.08);
   --danger: #c07070;
@@ -217,6 +217,17 @@ body {
   background: var(--accent-soft);
 }
 
+.dropzone-error,
+.dropzone-error:hover {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.dropzone-error .dropzone-icon {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
 .dropzone-icon {
   display: grid;
   place-items: center;
@@ -307,13 +318,64 @@ body {
   margin-top: 14px;
 }
 
-.preview-area img {
+.preview-wrap {
+  position: relative;
+}
+
+.preview-wrap img {
   max-width: 100%;
   max-height: 240px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   display: block;
   object-fit: contain;
+}
+
+.preview-remove {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--muted);
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition);
+}
+
+.preview-remove:hover {
+  color: var(--danger);
+  border-color: rgba(192, 112, 112, 0.45);
+  background: var(--danger-soft);
+}
+
+.preview-remove svg {
+  width: 14px;
+  height: 14px;
+}
+
+.replace-button {
+  margin-top: 8px;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--accent);
+  cursor: pointer;
+  text-align: left;
+  transition: color var(--transition);
+}
+
+.replace-button:hover {
+  color: var(--accent-strong);
+  text-decoration: underline;
 }
 
 .file-info {
@@ -422,11 +484,21 @@ body {
 /* ---------- messages ---------- */
 
 .message {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
   border-radius: var(--radius-sm);
   padding: 9px 12px;
   margin-top: 12px;
   font-size: 0.82rem;
   line-height: 1.45;
+}
+
+.message-icon {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  margin-top: 2px;
 }
 
 .message-info {

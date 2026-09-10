@@ -10,12 +10,18 @@ import {
 
 const fileInput = document.getElementById("fileInput");
 const chooseButton = document.getElementById("chooseButton");
+// const replaceButton = document.getElementById("replaceButton"); // DISABLED
+// const removeButton = document.getElementById("removeButton"); // DISABLED
 const processButton = document.getElementById("processButton");
 const selectionMessage = document.getElementById("selectionMessage");
 const statusMessage = document.getElementById("statusMessage");
 const errorMessage = document.getElementById("errorMessage");
+const dropzone = document.getElementById("dropzone");
+const previewArea = document.getElementById("previewArea");
 
 chooseButton.addEventListener("click", () => fileInput.click());
+// replaceButton.addEventListener("click", () => fileInput.click()); // DISABLED
+// removeButton.addEventListener("click", clearSelection); // DISABLED
 fileInput.addEventListener("change", handleFileSelection);
 processButton.addEventListener("click", submit);
 
@@ -27,12 +33,15 @@ function handleFileSelection() {
 
   hideMessage(selectionMessage);
   hideMessage(errorMessage);
+  dropzone.classList.remove("dropzone-error");
 
   const typeOk = file.type === "image/jpeg" || file.type === "image/png";
   const sizeOk = file.size > 0 && file.size <= MAX_IMAGE_BYTES;
 
   if (!typeOk || !sizeOk) {
     clearSelection();
+    dropzone.classList.remove("hidden");
+    dropzone.classList.add("dropzone-error");
     showMessage(
       selectionMessage,
       "Unsupported file. Choose a JPEG or PNG image no larger than 10 MB.",
@@ -45,7 +54,10 @@ function handleFileSelection() {
   state.previewObjectURL = URL.createObjectURL(file);
 
   renderPreview(file, state.previewObjectURL);
-
+  // Hide the dropzone and show the preview area
+  dropzone.classList.add("hidden");
+  previewArea.classList.remove("hidden");
+  // Update the state to reflect the selected file
   state.selectedFile = file;
   state.jobAccepted = false;
   processButton.disabled = false;
@@ -62,6 +74,8 @@ function clearSelection() {
   processButton.disabled = true;
   processButton.textContent = "Process image";
   fileInput.value = "";
+  previewArea.classList.add("hidden");
+  dropzone.classList.remove("hidden", "dropzone-error");
 }
 
 // submit sends exactly one POST. The isSubmitting guard and the disabled

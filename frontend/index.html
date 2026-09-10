@@ -71,7 +71,21 @@
         </div>
 
         <div id="previewArea" class="preview-area hidden" aria-live="polite">
-          <img id="previewImage" alt="Selected image preview">
+          <div class="preview-wrap">
+            <img id="previewImage" alt="Selected image preview">
+            <!-- REMOVE Button Disabled for now
+            <button type="button" id="removeButton" class="preview-remove" title="Remove image" aria-label="Remove image">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M10 11v6M14 11v6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+-->            
+            <!-- REPLACE Button Disabled for now
+              <button type="button" id="replaceButton" class="replace-button">
+                Replace image
+              </button>
+            -->
+          </div>
           <dl class="file-info">
             <div><dt>File</dt><dd id="fileName">-</dd></div>
             <div><dt>Size</dt><dd id="fileSize">-</dd></div>
