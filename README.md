@@ -138,13 +138,46 @@ make smoke
 
 Or run the checks individually against a live server with `BASE` set.
 
-## Week 1 status
+# Week 1 Report
 
-Implemented: initial / image-selected / uploading UI states, local preview
-without upload, server-side validation (type, size, presence, decodability),
-server-controlled stored filenames, durable image + queued job records, and
-`202 Accepted` acknowledgement with duplicate-submission protection.
+## Deliverables Status
 
-Not yet implemented: the background worker and variant generation (Week 2), the
-`GET /v1/jobs/{id}` resource (Week 2), short polling and the full job/UI
-lifecycle (Week 3), measurements (Week 4).
+| Deliverable | Description | Link |
+| :--- | :--- | :--- |
+| **Week1-Progress-Report** | Google Docs | [View Report](https://docs.google.com/document/d/1jtus5H4Qxr6YPU9RgY7I9NvQBndn3Fz8Dca9ynAyc10/edit?usp=sharing) |
+
+**Implemented:** Initial / image-selected / uploading UI states, local preview without upload, server-side validation (type, size, presence, decodability), server-controlled stored filenames, durable image + queued job records, and `202 Accepted` acknowledgement with duplicate-submission protection.
+
+**Not Yet Implemented:** Background worker and variant generation (Week 2), `GET /v1/jobs/{id}` resource (Week 2), short polling and full job/UI lifecycle (Week 3), measurements (Week 4).
+
+---
+
+## Progress Summary
+
+The ImageLab successfully covered the Week 1 scope by creating the asynchronous ingest boundary for the `POST /v1/images` API endpoint. The server verifies file uploads via byte-sniffing with the Go standard library, stores uploaded files in `data/uploads/`, performs atomic inserts of image and job data into the database in a single transaction, and then sends a `202 Accepted` response containing the job data and a `Location` header.
+
+The framework is implemented on top of a multi-layer architecture consisting of `cmd/api/`, `internal/data`, `internal/validator`, and `internal/files`. The project skeleton also consists of a health check, a frontend static application with client-side pre-checks and error handling, migrations using the `golang-migrate` pair, and a Makefile-driven workflow.
+
+End-to-end validation was performed using four migration pairs against a specific ImageLab database schema. A total of 11 tests were executed to verify the correct responses and ensure that the expected `400 Bad Request`, `413 Payload Too Large`, and `415 Unsupported Media Type` error responses were received. These tests also verified that database records and uploaded files were properly cleaned up after each test.
+
+**Validation Pipeline Challenges**
+Building an effective server-side validation pipeline for images proved more complex than initially expected because client-provided metadata was easy to spoof, rendering simple header-based checks inadequate. Using only Go's `http.DetectContentType` functionality introduced edge cases (such as handling the `charset=` parameter appended to the MIME type) and did not protect against simple file-renaming attacks. In addition, unchecked uploads could unnecessarily consume server resources.
+
+To address these issues, the validation pipeline was implemented in strict sequence:
+1. `http.MaxBytesReader` handles files that exceed the allowed size and returns a `413 Payload Too Large` response.
+2. Sanitized header sniffing rejects files with a MIME type other than JPEG or PNG and returns a `415 Unsupported Media Type` response.
+3. `image.Decode` verifies the actual image data and handles broken, truncated, or incorrectly formatted payloads, returning a `400 Bad Request` response when necessary.
+
+---
+
+## Week 1 Checklist
+
+- [x] Run the starter project and document the setup procedure.
+- [x] Configure PostgreSQL and apply the supplied or completed migrations.
+- [x] Identify the responsibilities of the browser, API, database, worker, and filesystem.
+- [x] Implement the initial, image-selected, and uploading UI states.
+- [x] Show a local browser preview without uploading or creating a job.
+- [x] Accept JPEG and PNG files up to 10 MB and reject unsupported input on the server.
+- [x] Generate a server-controlled filename and store the original image.
+- [x] Create or prepare the image, job, and variant data model.
+- [x] Prevent a second overlapping POST from the same page by using a disabled button and an `isSubmitting` guard.
