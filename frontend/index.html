@@ -4,55 +4,148 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ImageLab</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="12" cy="13" r="4" stroke="currentColor" stroke-width="1.6"/>
+        </svg>
+      </span>
+      <div class="brand-text">
+        <span class="brand-name">ImageLab</span>
+        <span class="brand-tagline">Asynchronous Image Processing</span>
+      </div>
+    </div>
+  </header>
+
   <main class="app">
-    <h1>ImageLab</h1>
-    <p class="tagline">Upload an image. ImageLab accepts the work and processes it in the background.</p>
+    <div class="page-heading">
+      <h1>Process an image</h1>
+      <p class="tagline">Upload an image and generate optimized variants in the background.</p>
+    </div>
 
-    <section class="card upload-card" aria-label="Image selection">
-      <input
-        type="file"
-        id="fileInput"
-        accept="image/jpeg,image/png"
-        hidden
-      >
-      <button type="button" id="chooseButton" class="button button-secondary">
-        Choose image
-      </button>
+    <div class="grid-row">
+      <section class="card" aria-label="Image selection">
+        <div class="card-header">
+          <span class="card-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+              <polyline points="17 8 12 3 7 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+              <line x1="12" y1="3" x2="12" y2="15" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </span>
+          <div>
+            <h2>Upload image</h2>
+            <p class="card-desc">Select a file to process</p>
+          </div>
+        </div>
 
-      <div id="previewArea" class="preview-area hidden" aria-live="polite">
-        <img id="previewImage" alt="Selected image preview">
-        <dl class="file-info">
-          <div><dt>File</dt><dd id="fileName">-</dd></div>
-          <div><dt>Size</dt><dd id="fileSize">-</dd></div>
-          <div><dt>Type</dt><dd id="fileType">-</dd></div>
-        </dl>
+        <input
+          type="file"
+          id="fileInput"
+          accept="image/jpeg,image/png"
+          hidden
+        >
+
+        <div id="dropzone" class="dropzone">
+          <span class="dropzone-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+              <polyline points="17 8 12 3 7 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+              <line x1="12" y1="3" x2="12" y2="15" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </span>
+          <p class="dropzone-title">Drag and drop an image here</p>
+          <p class="dropzone-sub">or choose a file to get started</p>
+          <button type="button" id="chooseButton" class="button button-outline">
+            Choose image
+          </button>
+          <p class="dropzone-hint">JPEG or PNG &middot; Maximum 10&nbsp;MB</p>
+        </div>
+
+        <div id="previewArea" class="preview-area hidden" aria-live="polite">
+          <img id="previewImage" alt="Selected image preview">
+          <dl class="file-info">
+            <div><dt>File</dt><dd id="fileName">-</dd></div>
+            <div><dt>Size</dt><dd id="fileSize">-</dd></div>
+            <div><dt>Type</dt><dd id="fileType">-</dd></div>
+          </dl>
+        </div>
+
+        <p id="selectionMessage" class="message hidden" role="status"></p>
+
+        <div class="actions">
+          <button type="button" id="processButton" class="button button-primary" disabled>
+            Process image
+          </button>
+        </div>
+
+        <p id="statusMessage" class="message message-info hidden" role="status"></p>
+        <p id="errorMessage" class="message message-error hidden" role="alert"></p>
+      </section>
+
+      <section class="card" aria-label="Processing job">
+        <div class="card-header">
+          <span class="card-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+              <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.6"/>
+            </svg>
+          </span>
+          <div>
+            <h2>Processing job</h2>
+            <p class="card-desc">Job status and details</p>
+          </div>
+        </div>
+        <div id="jobCardBody" class="job-body">
+          <div class="empty-state">
+            <span class="empty-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" stroke="currentColor" stroke-width="1.6"/>
+                <path d="M12 6v6l4 2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+              </svg>
+            </span>
+            <p class="empty-title">No active job</p>
+            <p class="empty-sub">Upload an image to create a processing job</p>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <section class="card results-card" aria-label="Generated images">
+      <div class="card-header">
+        <span class="card-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.6"/>
+            <rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.6"/>
+            <rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.6"/>
+            <rect x="14" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.6"/>
+          </svg>
+        </span>
+        <div>
+          <h2>Generated images</h2>
+          <p class="card-desc">Processed variants appear here</p>
+        </div>
       </div>
-
-      <p id="selectionMessage" class="message hidden" role="status"></p>
-
-      <div class="actions">
-        <button type="button" id="processButton" class="button button-primary" disabled>
-          Process image
-        </button>
+      <div class="empty-state empty-state-wide">
+        <span class="empty-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.6"/>
+            <rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.6"/>
+            <rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.6"/>
+            <rect x="14" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.6"/>
+          </svg>
+        </span>
+        <p class="empty-title">No images generated yet</p>
+        <p class="empty-sub">Processed image variants will appear here</p>
       </div>
-    </section>
-
-    <p id="statusMessage" class="message message-info hidden" role="status"></p>
-    <p id="errorMessage" class="message message-error hidden" role="alert"></p>
-
-    <section class="card job-card" aria-label="Job">
-      <h2>Job</h2>
-      <div id="jobCardBody" class="job-body">
-        <p class="muted">No active job.</p>
-      </div>
-    </section>
-
-    <section class="card results-card" aria-label="Results">
-      <h2>Results</h2>
-      <p class="muted">No images generated yet.</p>
     </section>
   </main>
 

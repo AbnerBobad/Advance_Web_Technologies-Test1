@@ -1,4 +1,5 @@
 # ImageLab
+![ImageLab UI](https://github.com/user-attachments/assets/0e648f1a-700e-4da6-a913-41663e150807)
 
 Asynchronous image processing with **202 Accepted** and **one-second short polling**.
 
