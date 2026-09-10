@@ -1,10 +1,15 @@
--- Filename: 000003_create_jobs_table.up.sql
+-- Filename: 000002_create_jobs_table.up.sql
+-- public_id is a second, fully-random identifier (uuidv4()),
+    -- distinct from the internal, time-ordered id. Only public_id
+    -- should ever be returned to a client or accepted in a URL never
+    -- the internal id.
 
 BEGIN;
 
 CREATE TABLE IF NOT EXISTS imagelab.jobs (
-    id            BIGSERIAL PRIMARY KEY,
-    image_id      BIGINT NOT NULL REFERENCES imagelab.images(id) ON DELETE CASCADE,
+    id            UUID PRIMARY KEY DEFAULT uuidv7(),
+    public_id     UUID NOT NULL UNIQUE DEFAULT uuidv4(),
+    image_id      UUID NOT NULL REFERENCES imagelab.images(id) ON DELETE CASCADE,
     status        TEXT NOT NULL DEFAULT 'queued',
     safe_error    TEXT,
     queued_at     TIMESTAMPTZ NOT NULL DEFAULT now(),

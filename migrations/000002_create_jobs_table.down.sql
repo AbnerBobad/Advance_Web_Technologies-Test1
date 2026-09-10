@@ -1,4 +1,4 @@
--- Filename: 000003_create_jobs_table.down.sql
+-- Filename: 000002_create_jobs_table.down.sql
 
 BEGIN;
 

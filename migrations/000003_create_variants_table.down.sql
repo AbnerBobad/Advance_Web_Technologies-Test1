@@ -1,4 +1,4 @@
--- Filename: 000004_create_variants_table.down.sql
+-- Filename: 000003_create_variants_table.down.sql
 
 BEGIN;
 

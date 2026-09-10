@@ -1,10 +1,10 @@
--- Filename: 000004_create_variants_table.up.sql
+-- Filename: 000003_create_variants_table.up.sql
 
 BEGIN;
 
 CREATE TABLE IF NOT EXISTS imagelab.variants (
-    id              BIGSERIAL PRIMARY KEY,
-    image_id        BIGINT NOT NULL REFERENCES imagelab.images(id) ON DELETE CASCADE,
+    id              UUID PRIMARY KEY DEFAULT uuidv7(),
+    image_id        UUID NOT NULL REFERENCES imagelab.images(id) ON DELETE CASCADE,
     name            TEXT NOT NULL,
     stored_filename TEXT NOT NULL,
     width           INTEGER NOT NULL,

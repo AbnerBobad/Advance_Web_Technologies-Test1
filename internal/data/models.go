@@ -47,9 +47,9 @@ func (m Models) AcceptOriginal(image *Image, job *Job) error {
 
 	err = tx.QueryRowContext(ctx, `
 		INSERT INTO imagelab.jobs (image_id, status, queued_at)
-		VALUES ($1, 'queued', now()) RETURNING id, image_id, status, queued_at`,
+		VALUES ($1, 'queued', now()) RETURNING id, public_id, image_id, status, queued_at`,
 		image.ID,
-	).Scan(&job.ID, &job.ImageID, &job.Status, &job.QueuedAt)
+	).Scan(&job.ID, &job.PublicID, &job.ImageID, &job.Status, &job.QueuedAt)
 	if err != nil {
 		return err
 	}
