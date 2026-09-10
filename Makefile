@@ -62,6 +62,11 @@ db/migrations/down: require-dsn confirm
 	@echo 'Rolling back last migration...'
 	migrate -path ./migrations -database "$(MIGRATE_DB_URL)" down 1
 
+## db/migrations/reset: roll back all database migrations
+.PHONY: db/migrations/reset
+db/migrations/reset: require-dsn confirm
+	@echo 'Rolling back all migrations...'
+	migrate -path ./migrations -database "$(MIGRATE_DB_URL)" down -all
 # ==================================================================================== #
 # QUALITY CONTROL
 # ==================================================================================== #

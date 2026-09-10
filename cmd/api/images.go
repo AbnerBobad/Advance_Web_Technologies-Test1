@@ -121,15 +121,15 @@ func (app *application) createImageHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	app.logger.Info("job created", "job_id", job.ID, "image_id", image.ID, "status", job.Status)
+	app.logger.Info("job created", "job_id", job.PublicID, "image_id", image.ID, "status", job.Status)
 
-	statusURL := fmt.Sprintf("/v1/jobs/%d", job.ID)
+	statusURL := fmt.Sprintf("/v1/jobs/%s", job.PublicID)
 	headers := make(http.Header)
 	headers.Set("Location", statusURL)
 
 	err = app.writeJSON(w, http.StatusAccepted, envelope{
 		"image_id":   image.ID,
-		"job_id":     job.ID,
+		"job_id":     job.PublicID,
 		"status":     job.Status,
 		"status_url": statusURL,
 	}, headers)

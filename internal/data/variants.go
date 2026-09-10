@@ -8,8 +8,8 @@ import (
 // Variant records one generated output (thumbnail, preview, display) owned by
 // an accepted image. The worker populates these in Week 2.
 type Variant struct {
-	ID             int64
-	ImageID        int64
+	ID             string
+	ImageID        string
 	Name           string
 	StoredFilename string
 	Width          int

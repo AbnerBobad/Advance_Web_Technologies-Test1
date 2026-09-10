@@ -8,7 +8,7 @@ import (
 // Image records one accepted original upload. The stored filename is
 // server-controlled and never derived from the submitted filename.
 type Image struct {
-	ID               int64
+	ID               string
 	OriginalFilename string
 	StoredFilename   string
 	MediaType        string

@@ -8,8 +8,9 @@ import (
 // Job models one unit of asynchronous image processing work. It is created as
 // queued in the upload handler and later claimed by the background worker.
 type Job struct {
-	ID          int64
-	ImageID     int64
+	ID          string
+	PublicID    string
+	ImageID     string
 	Status      string
 	QueuedAt    time.Time
 	StartedAt   *time.Time

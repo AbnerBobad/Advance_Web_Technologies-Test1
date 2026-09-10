@@ -7,4 +7,13 @@ BEGIN;
 -- schema owned by the application role.
 CREATE SCHEMA IF NOT EXISTS imagelab;
 
+CREATE TABLE IF NOT EXISTS imagelab.images (
+    id                UUID PRIMARY KEY DEFAULT uuidv7(),
+    original_filename TEXT NOT NULL,
+    stored_filename   TEXT NOT NULL,
+    media_type        TEXT NOT NULL,
+    size_bytes        BIGINT NOT NULL,
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 COMMIT;

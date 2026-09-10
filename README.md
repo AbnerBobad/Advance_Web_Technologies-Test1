@@ -65,13 +65,13 @@ go run ./cmd/api
 go run ./cmd/api -port=4000 -db-dsn="${POOLING_DB_DSN}"
 ```
 
-Open <http://localhost:8080>.
+Open <http://localhost:4000>.
 
 Flags (all optional, defaults shown):
 
 | Flag                   | Default                        | Purpose                         |
 | ---------------------- | ------------------------------ | ------------------------------- |
-| `-port`                | `8080`                         | HTTP listen port                |
+| `-port`                | `4000`                         | HTTP listen port                |
 | `-env`                 | `development`                  | Reported by `/v1/healthcheck`   |
 | `-db-dsn`              | `$POOLING_DB_DSN` or local DSN | PostgreSQL connection string    |
 | `-db-max-open-conns`   | `25`                           | Pool: max open connections      |
@@ -96,14 +96,14 @@ process the image.
 
 ```http
 HTTP/1.1 202 Accepted
-Location: /v1/jobs/42
+Location: /v1/jobs/6bd9a1ba-253a-4bcd-beed-750796768611
 Content-Type: application/json
 
 {
-  "image_id": 108,
-  "job_id": 42,
+  "image_id": "01a0892f-e8ff-7ebd-b999-7fd7ffc82042",
+  "job_id": "6bd9a1ba-253a-4bcd-beed-750796768611",
   "status": "queued",
-  "status_url": "/v1/jobs/42"
+  "status_url": "/v1/jobs/6bd9a1ba-253a-4bcd-beed-750796768611"
 }
 ```
 
