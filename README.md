@@ -32,15 +32,20 @@ Select image → POST /v1/images → 202 Accepted + status URL
 - [golang-migrate](https://github.com/golang-migrate/migrate) CLI (`migrate`)
 - A database named `pooling` with a role `pooling` (password `pa55word`)
 
-The connection string is exported by your shell profile `~/.profile` (the
-Makefile and application read it from the environment and never hardcode it):
+The connection string is provided by the project's `.envrc` file via
+[direnv](https://direnv.net). It is not exported from `~/.profile`; direnv
+loads it automatically when you enter the project directory:
 
 ```sh
+# .envrc  (already present, gitignored)
 export POOLING_DB_DSN='postgres://pooling:pa55word@localhost/pooling?sslmode=disable'
 ```
 
-`.envrc`/`.envrc.example` hold the same value and are optional for
-[direnv](https://direnv.net) users; `make` does not read them.
+To enable direnv on a new machine: install direnv, add the hook to your shell
+(`eval "$(direnv hook bash)"` in `~/.bashrc`), and allow the project's envrc
+(`direnv allow` inside the project). On a fresh clone, create `.envrc` from the
+tracked example (`cp .envrc.example .envrc`). The Makefile reads
+`POOLING_DB_DSN` from the environment and never hardcodes it.
 
 ## Setup
 
