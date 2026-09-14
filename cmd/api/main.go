@@ -9,6 +9,7 @@ import (
 	"flag"
 	"log/slog"
 	"os"
+	"sync"
 	"time"
 
 	"imagelab/internal/data"
@@ -27,7 +28,12 @@ const (
 type config struct {
 	port int
 	env  string
-	db   struct {
+	// processingDelay simulates expensive transformation time. It is applied
+	// inside the worker, never in the POST handler, mirroring the async
+	// contract: acknowledgement stays fast while later jobs queue.
+	processingDelay    time.Duration
+	workerPollInterval time.Duration
+	db                 struct {
 		dsn          string
 		maxOpenConns int
 		maxIdleConns int
@@ -38,12 +44,16 @@ type config struct {
 }
 
 // application holds the long-lived dependencies shared by every handler:
-// configuration, a logger, the database models, and the file store.
+// configuration, a logger, the database models, the file store, and the
+// background worker.
 type application struct {
 	config config
 	logger *slog.Logger
 	models data.Models
 	images *files.Store
+	wg     sync.WaitGroup
+	// workerCancel stops the background image worker during shutdown.
+	workerCancel context.CancelFunc
 }
 
 func main() {
@@ -51,6 +61,8 @@ func main() {
 
 	flag.IntVar(&cfg.port, "port", 4000, "API server port")
 	flag.StringVar(&cfg.env, "env", "development", "Environment (development|staging|production)")
+	flag.DurationVar(&cfg.processingDelay, "processing-delay", 0, "Artificial per-job processing delay inside the worker")
+	flag.DurationVar(&cfg.workerPollInterval, "worker-poll-interval", 250*time.Millisecond, "Worker queue-check interval")
 	flag.StringVar(&cfg.db.dsn, "db-dsn", os.Getenv("POOLING_DB_DSN"), "PostgreSQL DSN")
 	flag.IntVar(&cfg.db.maxOpenConns, "db-max-open-conns", 25, "PostgreSQL max open connections")
 	flag.IntVar(&cfg.db.maxIdleConns, "db-max-idle-conns", 25, "PostgreSQL max idle connections")
@@ -87,6 +99,13 @@ func main() {
 		models: data.NewModels(db),
 		images: fileStore,
 	}
+
+	// Start a cancellable background worker. Graceful shutdown cancels this
+	// context so the worker stops claiming new jobs before we wait on it.
+	workerCtx, cancelWorker := context.WithCancel(context.Background())
+	app.workerCancel = cancelWorker
+	defer cancelWorker()
+	app.startImageWorker(workerCtx)
 
 	err = app.serve()
 	if err != nil {

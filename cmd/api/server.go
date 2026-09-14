@@ -12,9 +12,8 @@ import (
 )
 
 // serve runs the HTTP server and blocks until it receives a shutdown signal
-// (SIGINT/SIGTERM). On shutdown it gracefully drains in-flight requests. In
-// Week 2 the background worker is started here and cancelled during shutdown
-// so no new jobs are claimed while the server winds down.
+// (SIGINT/SIGTERM). On shutdown it gracefully drains in-flight requests,
+// stops the background worker, and waits for it to finish before returning.
 func (app *application) serve() error {
 	// The HTTP server with sane timeouts. Long-running processing belongs to
 	// the background worker, never inside a request, so requests stay short.
@@ -47,6 +46,14 @@ func (app *application) serve() error {
 			return
 		}
 
+		app.logger.Info("completing background tasks", "addr", srv.Addr)
+
+		// Cancel the worker context, then wait for the worker goroutine to
+		// observe cancellation and finish its current iteration.
+		if app.workerCancel != nil {
+			app.workerCancel()
+		}
+		app.wg.Wait()
 		shutdownError <- nil
 	}()
 
