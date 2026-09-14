@@ -38,6 +38,17 @@ func (s *Store) Save(data []byte, ext string) (string, error) {
 	return name, nil
 }
 
+// Read returns the bytes of a previously stored file. The worker uses it to
+// read the original before generating variants, and the variant endpoint uses
+// it to serve the generated files.
+func (s *Store) Read(name string) ([]byte, error) {
+	data, err := os.ReadFile(filepath.Join(s.dir, name))
+	if err != nil {
+		return nil, fmt.Errorf("read file: %w", err)
+	}
+	return data, nil
+}
+
 // Remove deletes a stored file, used to clean up the input file when the
 // durable acceptance record cannot be created.
 func (s *Store) Remove(name string) error {
