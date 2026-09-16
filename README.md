@@ -182,3 +182,41 @@ To address these issues, the validation pipeline was implemented in strict seque
 - [x] Generate a server-controlled filename and store the original image.
 - [x] Create or prepare the image, job, and variant data model.
 - [x] Prevent a second overlapping POST from the same page by using a disabled button and an `isSubmitting` guard.
+
+# Week 2 Report
+ 
+## Deliverables Status
+ 
+| Deliverable | Description | Link |
+| :--- | :--- | :--- |
+| **Week2-Progress-Report** | Google Docs | [View Report](https://docs.google.com/document/d/1FGbYIN3TEjEOyyEQi6hn9vln2Hi2iWua2oDCASdfX1c/edit?usp=sharing) |
+ 
+**Implemented:** Background worker (`cmd/api/worker.go`), thumbnail/preview/display variant generation (`internal/imageproc`, standard library only), `GET /v1/jobs/{job_id}` resource with variant metadata, `GET /v1/images/{image_id}/variants/{name}` file serving, atomic job claiming (`SELECT ... FOR UPDATE SKIP LOCKED`), full `queued` → `processing` → `completed`/`failed` lifecycle with timestamps, and graceful worker shutdown.
+ 
+**Not Yet Implemented:** Short polling and full job/UI lifecycle rendering (Week 3), retrieval-error handling and `Try again` (Week 3), measurements and five-image burst testing (Week 4).
+ 
+---
+ 
+## Progress Summary
+ 
+Week 2 completed the server-side asynchronous path: the upload request accepts and responds with `202 Accepted` before any image manipulation occurs, with all transformation work happening in the background. Processing logic is implemented at two levels. The `internal/imageproc` package generates the three required variants using only the Go standard library: a 150×150 square thumbnail (center-cropped from the original), a preview that fits within 800×600 pixels, and a display that fits within 1200×900 pixels. The two fitted variants preserve the original aspect ratio and are never upscaled; all outputs are encoded in the same format as the source.
+ 
+The worker (`cmd/api/worker.go`) runs exactly one background worker in the application process. On each tick it claims one queued job at a time using `SELECT ... FOR UPDATE SKIP LOCKED`, sets `started_at`, reads the original image from the filesystem via the stored filename, generates all three variants, saves each variant file and its metadata row, and only then marks the job `completed`. If decoding, reading, generating, or saving fails at any point, every file created so far is removed and the job is marked `failed` with a client-safe error message.
+ 
+The visible component was also added: `GET /v1/jobs/{id}` reports the job's current state and timestamps, and — once completed — each variant's metadata and a URL to fetch it; a separate `GET /v1/images/{image_id}/variants/{name}` endpoint serves the actual files. `internal/data` gained the worker- and status-facing methods (`GetByPublicID`, `ClaimNext`, `MarkCompleted`, `MarkFailed`), and `internal/files` gained a `Read` method. The application starts the worker on launch using a cancellable context and, on shutdown, cancels the worker and waits for it to finish before exiting.
+ 
+**Verification**
+The `POST /v1/images` response consistently returned in well under a second, with the worker's (optional, configurable) processing delay applied only inside the background loop — confirming the response genuinely precedes the work rather than merely appearing to. Querying the status endpoint during a live run showed the database cycling through `queued` → `processing` → `completed`, with `queued_at`, `started_at`, and `completed_at` set at the correct transition points. The upload handler itself created no variants: the `variants` table was empty at the moment `202` was returned. The filesystem held the original file plus all three generated outputs. A deliberately wide 2000×500 source image produced 150×150, 800×200, and 1200×300 outputs, confirming the aspect-ratio and no-distortion contracts. Deleting the stored original before the worker read it correctly produced a `failed` job with the safe message `could not read the original image`. The database's status CHECK constraint was also confirmed to reject an illegal status value directly. `go build`, `go vet`, and `go test` all pass, and the smoke suite passes all 21 checks. The Week 2 gate holds: transformations never run inside the request handler.
+ 
+---
+ 
+## Week 2 Checklist
+ 
+- [x] Create the image and queued-job records as part of successful acceptance.
+- [x] Return HTTP 202 Accepted with Location, image_id, job_id, status, and status_url.
+- [x] Expose GET /v1/jobs/{job_id}.
+- [x] Run exactly one background worker inside the Go application.
+- [x] Find and claim queued work, then record started_at.
+- [x] Generate thumbnail, preview, and display variants using the required contracts.
+- [x] Store variant files and metadata.
+- [x] Mark the job completed only after every variant is available.
