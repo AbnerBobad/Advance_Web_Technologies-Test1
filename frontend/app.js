@@ -99,10 +99,10 @@ async function submit() {
   if (state.isSubmitting) return;
   if (!state.selectedFile || state.jobAccepted) return;
 
-  // A new submission observes a new job, so any previous job's polling
-  // loop must be cancelled first (POLL-06).
-  stopPolling();
-
+  // Note: observation of any previous job is NOT cancelled here. It is
+  // cancelled in beginObservingJob(), once the server has actually accepted
+  // the new job. A rejected upload must not kill observation of a job that
+  // is still running.
   state.isSubmitting = true;
   processButton.disabled = true;
   replaceButton.disabled = true;
@@ -126,6 +126,9 @@ async function submit() {
     beginObservingJob(result.body);
     processButton.textContent = "Process image";
     processButton.disabled = true;
+    // The user may pick another file at any time (UI-07). Process image stays
+    // disabled until they do, because this file already has a job.
+    replaceButton.disabled = false;
   } catch (error) {
     // A rejection or network failure must not leave the page unusable: the
     // user may choose a new file or attempt the submission again (SUB-03).
@@ -148,6 +151,9 @@ async function submit() {
 // state.job from the acceptance response and renders the initial
 // card before the first status GET has even been sent.
 function beginObservingJob(accepted) {
+  // A new observed job cancels observation of the previous one (POLL-06).
+  stopPolling();
+
   state.job = {
     id: accepted.job_id,
     image_id: accepted.image_id,
@@ -206,14 +212,12 @@ async function pollOnce(statusUrl) {
   if (job.status === "completed") {
     stopPolling();
     renderResults(job.variants);
-    replaceButton.disabled = true;
     return;
   }
 
   if (job.status === "failed") {
     stopPolling();
     renderResultsFailed(job.error);
-    replaceButton.disabled = true;
     return;
   }
 
@@ -247,7 +251,9 @@ function handleRetrievalError() {
 // resumePolling backs the Try again button (POLL-09/10). It re-requests the
 // same status_url without resubmitting the image or creating a new job.
 function resumePolling() {
-  if (!state.job || !state.job.status_url) return;
+  // If a loop is already running (e.g. a double-click on Try again before the
+  // first response returns), do nothing: two loops would double the GET rate.
+  if (!state.job || !state.job.status_url || state.polling) return;
   state.retrievalError = false;
   state.polling = true;
   state.pollAbortController = new AbortController();

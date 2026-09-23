@@ -1,4 +1,6 @@
-// data-service.js is the only module that talks to the ImageLab API.
+const STATUS_TIMEOUT_MS = 5000;
+const JOB_STATES = ["queued", "processing", "completed", "failed"];
+
 export async function submitImage(file) {
   const formData = new FormData();
   formData.append("file", file);
@@ -24,7 +26,14 @@ export async function submitImage(file) {
 // never that the job itself failed. The caller must keep that distinction
 // (see the Retrieval-error policy in the spec).
 export async function fetchJobStatus(statusUrl, signal) {
-  const response = await fetch(statusUrl, { signal, headers: { Accept: "application/json" } });
+  // Combine the caller's cancellation signal with a per-request timeout. A
+  // timeout aborts the fetch but leaves the caller's own signal un-aborted,
+  // so app.js correctly treats it as a retrieval error (POLL-07), while a
+  // deliberate cancellation is still ignored.
+  const response = await fetch(statusUrl, {
+    signal: AbortSignal.any([signal, AbortSignal.timeout(STATUS_TIMEOUT_MS)]),
+    headers: { Accept: "application/json" },
+  });
 
   if (!response.ok) {
     throw new Error("status check returned HTTP " + response.status);
@@ -35,6 +44,16 @@ export async function fetchJobStatus(statusUrl, signal) {
     body = await response.json();
   } catch (_) {
     throw new Error("status response could not be read");
+  }
+
+  // The server is expected to return a JSON object with a "status" field
+  // that is one of the known job states. If it does not, treat it as a
+  // retrieval error.
+  if (!body || !JOB_STATES.includes(body.status)) {
+    throw new Error("status response was not usable");
+  }
+  if (body.status === "completed" && !Array.isArray(body.variants)) {
+    throw new Error("completed status response had no variants");
   }
 
   return body;
