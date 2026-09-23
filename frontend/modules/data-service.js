@@ -16,7 +16,7 @@ export async function submitImage(file) {
 }
 
 // fetchJobStatus performs exactly one short-polling GET against the job's
-// status URL (POLL-02, POLL-03). It never retries and never waits for a
+// status URL. It never retries and never waits for a
 // state change server-side; the caller decides when to ask again.
 //
 // A rejected promise here always means a *retrieval* error (network
