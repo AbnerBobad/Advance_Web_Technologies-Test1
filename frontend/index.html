@@ -80,11 +80,9 @@
               </svg>
             </button>
 -->            
-            <!-- REPLACE Button Disabled for now
               <button type="button" id="replaceButton" class="replace-button">
                 Replace image
               </button>
-            -->
           </div>
           <dl class="file-info">
             <div><dt>File</dt><dd id="fileName">-</dd></div>
@@ -148,17 +146,19 @@
           <p class="card-desc">Processed variants appear here</p>
         </div>
       </div>
-      <div class="empty-state empty-state-wide">
-        <span class="empty-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.6"/>
-            <rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.6"/>
-            <rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.6"/>
-            <rect x="14" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.6"/>
-          </svg>
-        </span>
-        <p class="empty-title">No images generated yet</p>
-        <p class="empty-sub">Processed image variants will appear here</p>
+      <div id="resultsBody">
+        <div class="empty-state empty-state-wide">
+          <span class="empty-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.6"/>
+              <rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.6"/>
+              <rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.6"/>
+              <rect x="14" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.6"/>
+            </svg>
+          </span>
+          <p class="empty-title">No images generated yet</p>
+          <p class="empty-sub">Processed image variants will appear here</p>
+        </div>
       </div>
     </section>
   </main>

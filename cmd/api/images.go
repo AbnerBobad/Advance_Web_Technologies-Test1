@@ -37,7 +37,6 @@ var allowedMediaTypes = map[string]string{
 // performs image transformation; that work belongs to the background worker.
 func (app *application) createImageHandler(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, bodyLimit)
-
 	err := r.ParseMultipartForm(bodyLimit)
 	if err != nil {
 		var tooLarge *http.MaxBytesError
