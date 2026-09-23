@@ -57,9 +57,10 @@ const STATUS_BADGE = {
 // unreadable block. The full value is always available via the title
 // attribute for reference.
 function formatJobId(id) {
-  const value = String(id ?? "-");
-  if (value.length <= 14) return value;
-  return value.slice(0, 8) + "\u2026" + value.slice(-4);
+  // const value = String(id ?? "-");
+  // if (value.length <= 14) return value;
+  // return value.slice(0, 8) + "\u2026" + value.slice(-4);
+  return String(id ?? "-");
 }
 
 function buildStep(stepState, title, time) {
