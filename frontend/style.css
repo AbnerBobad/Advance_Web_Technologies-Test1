@@ -836,10 +836,6 @@ body {
   color: #e08a8a;
 }
 
-.poll-panel--error .poll-sub {
-  color: #b29595;
-}
-
 .poll-sub {
   font-size: 0.76rem;
   color: var(--muted);
@@ -861,7 +857,7 @@ body {
   font-weight: 600;
 }
 
-.poll-retry:hover:not(:disabled) {
+.poll-retry:hover {
   background: #d08585;
   box-shadow: 0 2px 8px rgba(192, 112, 112, 0.3);
 }
@@ -893,22 +889,23 @@ body {
    visible and visually centered regardless of its own shape. */
 .result-thumb {
   position: relative;
-  height: 220px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  width: 100%;
+  height: 240px;         /* identical fixed frame for every variant */
+  flex: none;            /* never grow/shrink with the image inside */
+  overflow: hidden;
   background: var(--bg-raised);
 }
 
 .result-thumb img {
-  max-width: 88%;
-  max-height: 88%;
-  width: auto;
-  height: auto;
-  object-fit: contain;
+  /* Fills the identical fixed frame edge to edge. Display only: the
+     downloaded file and its reported dimensions are untouched. */
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
   display: block;
-  border-radius: 4px;
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.2);
 }
 
 .result-ready-badge {
