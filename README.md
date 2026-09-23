@@ -220,3 +220,40 @@ The `POST /v1/images` response consistently returned in well under a second, wit
 - [x] Generate thumbnail, preview, and display variants using the required contracts.
 - [x] Store variant files and metadata.
 - [x] Mark the job completed only after every variant is available.
+
+# Week 3 Report
+ 
+## Deliverables Status
+ 
+| Deliverable | Description | Link |
+| :--- | :--- | :--- |
+| **Week3-Progress-Report** | Google Docs | [View Report](https://docs.google.com/document/d/1AQbBZnoQDHpdpN8CCbsh9oddJ1U5fjJtMYfrm7Qs6UI/edit?usp=sharing) |
+ 
+**Implemented:** One-second short polling that starts only after `202 Accepted` (`frontend/app.js`), a `frontend/modules/data-service.js` status fetch with a 5 s per-request timeout, full job/UI lifecycle rendering (`frontend/render.js`), `AbortController` cancellation, retrieval-error handling with a `Try again` action that resumes the same job, and a replace-image flow.
+ 
+**Not Yet Implemented:** Measurements (acknowledgement, queue wait, processing, job duration, polling count, detection delay), the five-image burst experiment, and the final Week 4 integration checklist.
+ 
+---
+ 
+## Progress Summary
+ 
+Week 3 connected the browser to the durable job resource. Polling begins only after the POST returns `202 Accepted` with a `status_url` (`beginObservingJob` in `frontend/app.js`); selecting a file never starts a poll. `app.js` then runs a loop that sends one `GET /v1/jobs/{id}` roughly every second while the last known state is `queued` or `processing`, and stops immediately on `completed` or `failed`. Each response is fetched by `fetchJobStatus` in `frontend/modules/data-service.js`, which combines the canceled caller signal with a 5-second per-request timeout via `AbortSignal.any`, so a slow or failed response is treated as a retrieval error rather than processing failure.
+ 
+The UI renders the authoritative four-step timeline (upload accepted, original stored, generating variants, complete) from the job's status and timestamps (`buildTimeline` in `frontend/render.js`), updates the status badge and timestamps after every response, and keeps the results panel in an "Images are being generated" state until `completed`. Results cards with names, actual dimensions, and view/download controls appear only at completion; a `failed` job shows the safe error and never marks `Complete`.
+ 
+Retrieval errors follow the required decision rule: the job and its last known state are preserved, automatic polling stops, and the card offers `Try again` (`handleRetrievalError`/`resumePolling`). `Try again` re-requests the existing `status_url` without resubmitting the image, so it can discover that a job completed while observation was interrupted. A new accepted job cancels observation of any previous job, and a `beforeunload` handler cancels in-flight polling on page shutdown (`stopPolling`, driven by `AbortController`). The smoke suite's polling loop already observes the `queued` → `processing` → `completed` transition, `go build`, `go vet`, and `go test` all pass, and the smoke checks continue to pass.
+ 
+---
+ 
+## Week 3 Checklist
+ 
+- [x] Begin polling only after receiving 202 and a status_url.
+- [x] Send one GET status request approximately every second while queued or processing.
+- [x] Ensure each server response returns promptly with the current state.
+- [x] Update the status badge, timeline, timestamps, and polling indicator after every response.
+- [x] Keep results hidden while queued or processing.
+- [x] Stop polling on completed and display all three variants.
+- [x] Stop polling on failed and display a safe processing error.
+- [x] Use AbortController to cancel observation when a different job is started or the page unloads.
+- [x] On a retrieval error, preserve the job and last known state, stop polling, and offer Try again.
+- [x] Make Try again resume observation of the same status_url without resubmitting the image.
