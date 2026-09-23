@@ -116,14 +116,13 @@ function buildPollPanel(job, mode) {
 
   if (mode === "retrieval-error") {
     panel.classList.add("poll-panel--error");
-    const row = el("div", "poll-row");
-    row.appendChild(el("span", "poll-icon poll-icon--warn", "!"));
-    row.appendChild(el("span", "poll-title", "Unable to check status"));
-    panel.appendChild(row);
     panel.appendChild(
-      el("p", "poll-sub", "The job may still be running. Your last known status is shown.")
+      el("p", "poll-title", "Unable to check status. The job may still be running.")
     );
-    const button = el("button", "button button-outline poll-retry");
+    panel.appendChild(
+      el("p", "poll-sub", "Your last known status is shown below.")
+    );
+    const button = el("button", "button button-primary poll-retry");
     button.type = "button";
     button.id = "tryAgainButton";
     button.textContent = "Try again";
