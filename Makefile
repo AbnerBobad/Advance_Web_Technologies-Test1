@@ -94,6 +94,12 @@ audit:
 smoke:
 	./scripts/smoke.sh
 
+## measure: run the Week 4 measurement harness (server must be running; for
+## a meaningful burst start it with -processing-delay=2s)
+.PHONY: measure
+measure:
+	./scripts/measure.sh
+
 # ==================================================================================== #
 # BUILD
 # ==================================================================================== #

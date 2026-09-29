@@ -110,9 +110,13 @@ async function submit() {
   hideMessage(errorMessage);
   hideMessage(statusMessage);
   showMessage(statusMessage, "Uploading...", "message-info");
+  state.ackLatencyMs = null;
+  state.detectionDelayMs = null;
 
   try {
+    const requestStart = performance.now();
     const result = await submitImage(state.selectedFile);
+    state.ackLatencyMs = performance.now() - requestStart;
 
     if (!result.accepted) {
       const reason = result.body && result.body.error
@@ -206,6 +210,15 @@ async function pollOnce(statusUrl) {
   state.pollCount += 1;
   mergeJobResponse(job);
   state.job.__pollCount = state.pollCount;
+  state.job.__ackLatencyMs = state.ackLatencyMs;
+
+  // Detection delay is client observation of completion minus the server's
+  // completed_at (Section 15). Compute it before rendering the card so the
+  // completed UI can show it alongside the other measurements.
+  if (job.status === "completed" && job.completed_at) {
+    state.detectionDelayMs = Date.now() - Date.parse(job.completed_at);
+    state.job.__detectionDelayMs = state.detectionDelayMs;
+  }
 
   renderJobCard(state.job);
 

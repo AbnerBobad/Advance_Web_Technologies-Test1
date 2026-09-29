@@ -24,7 +24,12 @@ export const state = {
   retrievalError: false,
   pollCount: 0,
 
-
+  // Week 4 measurements (Section 15). ackLatencyMs is the time between the
+  // browser starting the upload POST and receiving the 202 response;
+  // detectionDelayMs is the time between the server stamping completed_at
+  // and this page observing it. Both are filled in by app.js.
+  ackLatencyMs: null,
+  detectionDelayMs: null,
 };
 
 export { MAX_IMAGE_BYTES };

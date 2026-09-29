@@ -954,3 +954,49 @@ body {
   color: var(--accent-strong);
   text-decoration: underline;
 }
+
+/* ---------- measured lifecycle ---------- */
+
+.job-measurements {
+  margin-top: 16px;
+  border-top: 1px solid var(--border-soft);
+  padding-top: 12px;
+}
+
+.measure-title {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted-soft);
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+
+.measure-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px;
+}
+
+.measure-cell {
+  background: var(--bg-raised);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.measure-value {
+  font-family: "SF Mono", ui-monospace, Menlo, monospace;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-bright);
+}
+
+.measure-label {
+  font-size: 0.66rem;
+  color: var(--muted-soft);
+  letter-spacing: 0.02em;
+}

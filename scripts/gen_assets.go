@@ -45,6 +45,35 @@ func main() {
 	must(jpeg.Encode(&jpgBuf, img, &jpeg.Options{Quality: 90}))
 	must(os.WriteFile(filepath.Join(dir, "photo.jpg"), jpgBuf.Bytes(), 0o644))
 
+	// burst_1..burst_5.png: five distinct valid images used by the Week 4
+	// five-image measurement. Different sizes exercise the variant contracts
+	// (a wide panorama, an exact-ratio image, a small source, and an
+	// exact-bounds image) so the burst run also verifies no upscaling.
+	burst := []struct {
+		name string
+		w, h int
+		r, g, b uint8
+	}{
+		{"burst_1.png", 1200, 800, 30, 90, 200},   // fits preview exactly? 1200x800 -> preview 800x533
+		{"burst_2.png", 2000, 500, 200, 60, 40},   // wide panorama -> preview 800x200, display 1200x300
+		{"burst_3.png", 1024, 1024, 40, 160, 70},  // square -> preview 600x600
+		{"burst_4.png", 640, 480, 90, 60, 150},    // below preview bounds -> unchanged
+		{"burst_5.png", 1200, 900, 220, 200, 60},  // exactly display bounds -> display unchanged
+	}
+	for _, b := range burst {
+		img := image.NewRGBA(image.Rect(0, 0, b.w, b.h))
+		fill := color.RGBA{R: b.r, G: b.g, B: b.b, A: 255}
+		for y := 0; y < img.Bounds().Dy(); y++ {
+			for x := 0; x < img.Bounds().Dx(); x++ {
+				img.Set(x, y, fill)
+			}
+		}
+		f, err := os.Create(filepath.Join(dir, b.name))
+		must(err)
+		must(png.Encode(f, img))
+		must(f.Close())
+	}
+
 	// fake.png: plain text with a .png extension. Must be rejected by the
 	// server's content-sniffing, not accepted based on the extension.
 	must(os.WriteFile(filepath.Join(dir, "fake.png"), []byte("this is not an image"), 0o644))

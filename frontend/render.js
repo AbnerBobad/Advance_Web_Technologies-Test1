@@ -163,6 +163,55 @@ function buildPollPanel(job, mode) {
   return panel;
 }
 
+// ---------- week 4 measurements ----------
+
+function msDiff(a, b) {
+  if (!a || !b) return null;
+  const A = Date.parse(a);
+  const B = Date.parse(b);
+  if (isNaN(A) || isNaN(B)) return null;
+  return Math.max(0, B - A);
+}
+
+function formatDuration(ms) {
+  if (ms === null || ms === undefined || isNaN(ms)) return "—";
+  if (ms < 1000) return ms + " ms";
+  return (ms / 1000).toFixed(2) + " s";
+}
+
+// buildMeasurements renders the required Week 4 metrics for a terminal job.
+// Server-side durations are derived from the timestamps the API reports;
+// acknowledgement latency, polling count, and detection delay come from the
+// page's own observation (state attached by app.js).
+function buildMeasurements(job) {
+  const dl = el("div", "measure-grid");
+  const add = (label, value) => {
+    const cell = el("div", "measure-cell");
+    cell.appendChild(el("span", "measure-value", value));
+    cell.appendChild(el("span", "measure-label", label));
+    dl.appendChild(cell);
+  };
+
+  add("Acknowledge latency", formatDuration(job.__ackLatencyMs));
+
+  const queueWait = msDiff(job.queued_at, job.started_at);
+  add("Queue wait", formatDuration(queueWait));
+
+  const procEnd = job.completed_at || job.failed_at;
+  const processing = msDiff(job.started_at, procEnd);
+  add("Processing", formatDuration(processing));
+
+  if (job.status === "completed") {
+    const jobDuration = msDiff(job.queued_at, job.completed_at);
+    add("Job duration", formatDuration(jobDuration));
+  }
+
+  add("Polling count", String(job.__pollCount ?? 0));
+  add("Detection delay", formatDuration(job.__detectionDelayMs));
+
+  return dl;
+}
+
 // renderJobCard is the single entry point used for every job-card update:
 // right after 202 Accepted, after every polling response, and after a
 // retrieval error. options.mode is "polling" (default) or "retrieval-error".
@@ -192,6 +241,17 @@ export function renderJobCard(job, options) {
   grid.appendChild(side);
 
   jobCardBody.appendChild(grid);
+
+  // Measurements are meaningful only once the job has reached a terminal
+  // state (completed or failed) and the page has observed enough to report
+  // durations. queued_at is enough for ack latency display even earlier,
+  // but keep the strip to terminal states to avoid half-filled cells.
+  if (job.status === "completed" || job.status === "failed") {
+    const section = el("div", "job-measurements");
+    section.appendChild(el("p", "measure-title", "Measured lifecycle"));
+    section.appendChild(buildMeasurements(job));
+    jobCardBody.appendChild(section);
+  }
 }
 
 // ---------- results panel ----------

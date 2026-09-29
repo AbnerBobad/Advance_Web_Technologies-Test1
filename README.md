@@ -5,16 +5,16 @@ Asynchronous image processing with **202 Accepted** and **one-second short polli
 
 The upload request accepts and preserves the work. A background worker performs
 the transformation. PostgreSQL owns the authoritative job state, and the
-browser observes that state through short polling (Weeks 2-3).
+browser observes that state through short polling.
 
 ## Architecture
 
 ```
 Select image → POST /v1/images → 202 Accepted + status URL
                                         ↓
-                              one background worker (Week 2)
+                              one background worker
                                         ↓
-        browser polls GET /v1/jobs/{id} every 1 second (Week 3)
+        browser polls GET /v1/jobs/{id} every 1 second
                                         ↓
                    completed → display all variants
 ```
@@ -24,7 +24,7 @@ Select image → POST /v1/images → 202 Accepted + status URL
   image + queued job, returns `202 Accepted`. It never generates variants.
 - **PostgreSQL** — owns the authoritative `images`, `jobs`, and `variants` records.
 - **Filesystem** — stores originals under `data/uploads` with server-controlled names.
-- **Worker** — one in-process goroutine performs the transformations (Week 2).
+- **Worker** — one in-process goroutine performs the transformations.
 
 ## Prerequisites
 
@@ -85,6 +85,8 @@ Flags (all optional, defaults shown):
 | `-db-max-idle-time`    | `15m`                          | Pool: max connection idle time  |
 | `-upload-dir`          | `data/uploads`                 | Image file directory            |
 | `-frontend-dir`        | `frontend`                     | Served static frontend dir      |
+| `-processing-delay`    | `0`                            | Artificial per-job delay inside the worker (measurement) |
+| `-worker-poll-interval`| `250ms`                        | Worker queue-check interval    |
 
 ## API
 
@@ -119,15 +121,18 @@ Rejections use client-safe status codes (400/413/415) and never create a job.
 
 ```
 cmd/api/            HTTP server: main, routes, server, helpers, errors,
-                    healthcheck, images (upload handler)
+                    healthcheck, images (upload handler), jobs, variants, worker
 frontend/           Vanilla JS client: app.js, state.js, render.js,
                     modules/data-service.js, style.css
 internal/data/      Database models: images, jobs, variants, Models aggregate
 internal/files/     Server-controlled filesystem storage
+internal/imageproc/ Standard-library variant generation (thumbnail/preview/display)
 internal/validator/ Field-validation helper
 migrations/         golang-migrate up/down pairs (imagelab schema)
 scripts/smoke.sh    Repeatable API acceptance checks
-Makefile            run, migrate, tidy, audit, build, smoke targets
+scripts/measure.sh  Week 4 measurement harness (single image + five-image burst)
+scripts/gen_assets.go  Fixture generator used by both scripts
+Makefile            run, migrate, tidy, audit, build, smoke, measure targets
 ```
 
 ## Smoke tests
@@ -138,6 +143,22 @@ make smoke
 ```
 
 Or run the checks individually against a live server with `BASE` set.
+
+## Measurements (Week 4)
+
+`scripts/measure.sh` reproduces the required Section 15 metrics for one image
+and a five-image burst. Start the server with an artificial processing delay so
+the single worker makes queueing visible, then run the harness:
+
+```sh
+go run ./cmd/api -processing-delay=2s &
+make measure
+# or: BASE=http://localhost:4000 ./scripts/measure.sh
+```
+
+The job card also reports the measured lifecycle (acknowledge latency, queue
+wait, processing, job duration, polling count, detection delay) once a job
+reaches a terminal state.
 
 # Week 1 Report
 
@@ -258,3 +279,82 @@ Retrieval errors conform to the specified decision rules: the job and its most r
 - [x] Use AbortController to cancel observation when a different job is started, or the page unloads.
 - [x] On a retrieval error, preserve the job and last known state, stop polling, and offer Try again.
 - [x] Make Try again resume observation of the same status_url without resubmitting the image.
+
+# Week 4 Report
+
+## Deliverables Status
+
+| Deliverable | Description | Link |
+| :--- | :--- | :--- |
+| **Week4-Progress-Report** | Google Docs | [View Report](TODO-ADD-WEEK4-REPORT-LINK) |
+
+**Implemented:** The full acceptance checklist passes, worker-failure and retrieval-failure tests pass, a reproducible measurement harness (`scripts/measure.sh`) plus frontend-measured lifecycle display, a five-image burst experiment that exposes queueing behind the single worker, and this final report with measurements and interpretation.
+
+**Not Yet Implemented:** Nothing for Version 1. The five-image burst and single-image metrics below are live measurements from a local run with `-processing-delay=2s`.
+
+---
+
+## Progress Summary
+
+Week 4 closed the integration loop. The acceptance checklist was run against a live server and all checks pass (`scripts/smoke.sh`: 21 passed, 0 failed). Database constraints were verified directly: the `jobs_status_check` CHECK rejects an unknown status, `jobs_status_times` rejects inconsistent timestamp combinations, `variants_name_check` rejects an unknown variant name, and unknown job/variant URLs return 404 without leaking the 10 MB/file/`stored_filename` internals.
+
+The frontend now records and renders the required measurements. Acknowledgement latency is captured in `submit()` as the wall time between starting the POST and receiving the `202` response; polling count is the accumulated status GETs; detection delay is computed when a poll observes `completed` (client observation time minus the server's `completed_at`). `render.js` derives queue wait, processing, and job duration from the timestamps in the authoritative job response and shows them in a "Measured lifecycle" grid on the job card once the job reaches a terminal state.
+
+Worker failure was re-validated by deleting the stored original inside the worker's delay window: the job transitioned to `failed` with the safe message "could not read the original image", never reported partial work, and exposed no internal paths. Status-retrieval failure had already been separated from processing failure in Week 3 (polling stops and the same job is offered via `Try again`, never resubmitted).
+
+---
+
+## Measurements (Section 15)
+
+### Single image (source 2000×500 PNG, server `-processing-delay=2s`)
+
+| Metric | Value |
+| :--- | :--- |
+| Acknowledgement latency | 26 ms |
+| Queue wait | 190 ms |
+| Processing duration | 2.30 s |
+| Job duration | 2.49 s |
+| Polling count | 6 |
+| Detection delay | 209 ms |
+
+Variant contract for the same 2000×500 source:
+
+| Variant | Target | Actual output |
+| :--- | :--- | :--- |
+| thumbnail | 150×150 exact square | 150 × 150 |
+| preview | max 800×600, fit | 800 × 200 |
+| display | max 1200×900, fit | 1200 × 300 |
+
+### Five-image burst (one worker, submitted within ~210 ms)
+
+| Submit | File | Queue wait | Processing | Job duration | Ack latency |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| 1 | burst_1.png | 72 ms | 2.15 s | 2.22 s | 35 ms |
+| 2 | burst_2.png | 2.16 s | 2.16 s | 4.33 s | 26 ms |
+| 3 | burst_3.png | 4.28 s | 2.26 s | 6.54 s | 15 ms |
+| 4 | burst_4.png | 6.51 s | 2.04 s | 8.55 s | 8 ms |
+| 5 | burst_5.png | 8.52 s | 2.24 s | 10.76 s | 15 ms |
+
+Wall time from first submission to last completion ≈ 11.4 s.
+
+---
+
+## Interpretation
+
+- **202 reduces acknowledgement latency, not work.** Every acknowledgement above lands in tens of milliseconds regardless of processing, which is why the request returns long before the variant work finishes. The transformation cost (about 2.2 s per image here) is unchanged; 202 only moves it off the request path.
+- **One worker makes later jobs wait.** With five jobs queued and one worker, queue wait grows almost linearly (72 ms → 8.52 s) while per-job processing stays flat, and job duration grows with queue position. This is the observable signature of a shared worker: 202 is fast for every job, but total wall time is `5 × processing`.
+- **One-second polling bounds detection delay.** Detection delay stayed near the poll interval (209 ms here, i.e. less than one second), and polling count (~6 per ~2.5 s job) scales with job duration. A shorter interval would reduce detection delay but increase request count; this is the trade-off the one-second choice balances.
+- **Later observation mechanisms** (out of scope for Version 1) could push completion notifications instead of the browser repeatedly asking — e.g. Server-Sent Events or WebSockets would remove both the per-poll request load and the interval-shaped detection delay. The durable job and persisted timestamps in PostgreSQL already give such a mechanism everything it needs to observe the same authoritative state.
+
+---
+
+## Week 4 Checklist
+
+- [x] Run the entire acceptance checklist and record results.
+- [x] Test successful upload, rejection, worker failure, status-retrieval failure, Try again, completion, and a second upload.
+- [x] Submit one image and collect timing and polling measurements.
+- [x] Submit five images close together and observe queue position with one worker.
+- [x] Verify output dimensions and aspect-ratio behaviour.
+- [x] Review database constraints and client-safe errors.
+- [x] Complete setup instructions so another person can run the project.
+- [x] Prepare the final technical reflection.
