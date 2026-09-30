@@ -175,7 +175,7 @@ function msDiff(a, b) {
 
 function formatDuration(ms) {
   if (ms === null || ms === undefined || isNaN(ms)) return "—";
-  if (ms < 1000) return ms + " ms";
+  if (ms < 1000) return Math.round(ms) + " ms";
   return (ms / 1000).toFixed(2) + " s";
 }
 

@@ -986,6 +986,8 @@ body {
   display: flex;
   flex-direction: column;
   gap: 1px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .measure-value {
@@ -993,6 +995,7 @@ body {
   font-size: 0.82rem;
   font-weight: 600;
   color: var(--text-bright);
+  overflow-wrap: break-word;
 }
 
 .measure-label {

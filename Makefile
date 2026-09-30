@@ -39,6 +39,11 @@ confirm:
 run: require-dsn
 	go run ./cmd/api -db-dsn="$(POOLING_DB_DSN)"
 
+## delay-run: run the ImageLab application with a 15s delay (uses POOLING_DB_DSN from the environment)
+.PHONY: run
+delay-run: require-dsn
+	go run ./cmd/api -db-dsn="$(POOLING_DB_DSN)" -processing-delay=15s
+
 ## db/psql: connect to the database using psql
 .PHONY: db/psql
 db/psql: require-dsn
