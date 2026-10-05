@@ -286,7 +286,7 @@ Retrieval errors conform to the specified decision rules: the job and its most r
 
 | Deliverable | Description | Link |
 | :--- | :--- | :--- |
-| **Week4-Progress-Report** | Google Docs | [View Report](TODO-ADD-WEEK4-REPORT-LINK) |
+| **Week4-Progress-Report** | Google Docs | [View Report](https://docs.google.com/document/d/1kWK_DZzdU7jLAbyKKV3vpnofGiKSJ5VnGC_HEi2NzQs/edit?usp=sharing) |
 
 **Implemented:** The full acceptance checklist passes, worker-failure and retrieval-failure tests pass, a reproducible measurement harness (`scripts/measure.sh`) plus frontend-measured lifecycle display, a five-image burst experiment that exposes queueing behind the single worker, and this final report with measurements and interpretation.
 
