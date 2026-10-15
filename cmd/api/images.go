@@ -120,7 +120,7 @@ func (app *application) createImageHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	app.logger.Info("job created", "job_id", job.PublicID, "image_id", image.ID, "status", job.Status)
+	app.logger.Info("job created", "job_id", job.PublicID, "image_id", image.ID, "status", job.Status, "version", job.Version)
 
 	statusURL := fmt.Sprintf("/v1/jobs/%s", job.PublicID)
 	headers := make(http.Header)
@@ -130,6 +130,7 @@ func (app *application) createImageHandler(w http.ResponseWriter, r *http.Reques
 		"image_id":   image.ID,
 		"job_id":     job.PublicID,
 		"status":     job.Status,
+		"version":    job.Version,
 		"status_url": statusURL,
 	}, headers)
 	if err != nil {

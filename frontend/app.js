@@ -1,5 +1,10 @@
 import { state, MAX_IMAGE_BYTES } from "./state.js";
-import { submitImage, fetchJobStatus } from "./modules/data-service.js";
+import {
+  submitImage,
+  fetchJobSnapshot,
+  fetchJobStatus,
+  observeJobAfter,
+} from "./modules/data-service.js";
 import {
   renderPreview,
   clearPreview,
@@ -35,9 +40,16 @@ processButton.addEventListener("click", submit);
 // (stable) container than to re-bind a listener after every render.
 jobCardBody.addEventListener("click", (event) => {
   if (event.target.closest("#tryAgainButton")) {
-    resumePolling();
+    resumeObservation();
   }
 });
+
+// Changing the observation mode while a job is being observed restarts
+// observation of the same job in the new mode. It never uploads the image
+// again or creates a new job (UI-04).
+for (const input of document.querySelectorAll('input[name="observationMode"]')) {
+  input.addEventListener("change", handleModeChange);
+}
 
 renderResultsEmpty();
 
@@ -149,19 +161,32 @@ async function submit() {
   }
 }
 
-// ---------- job observation: short polling ----------
+// ---------- job observation (short and long polling) ----------
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function isTerminal(status) {
+  return status === "completed" || status === "failed";
+}
+
+// selectedMode reads the observation control (UI-01): "short" or "long".
+function selectedMode() {
+  const checked = document.querySelector('input[name="observationMode"]:checked');
+  return checked ? checked.value : "short";
+}
 
 // beginObservingJob starts observation right after 202 Accepted. It seeds
-// state.job from the acceptance response and renders the initial
-// card before the first status GET has even been sent.
+// state.job from the acceptance response and renders the initial card before
+// the first status GET is sent.
 function beginObservingJob(accepted) {
-  // A new observed job cancels observation of the previous one (POLL-06).
-  stopPolling();
+  // A new observed job cancels observation of the previous one (UI-04).
+  stopObservation();
 
   state.job = {
     id: accepted.job_id,
     image_id: accepted.image_id,
     status: accepted.status || "queued",
+    version: accepted.version ?? null,
     status_url: accepted.status_url,
     queued_at: null,
     started_at: null,
@@ -173,119 +198,204 @@ function beginObservingJob(accepted) {
   state.retrievalError = false;
   state.pollCount = 0;
 
-  renderJobCard(state.job);
   renderResultsProcessing();
-
-  startPolling(accepted.status_url);
+  startObservation();
 }
 
-function startPolling(statusUrl) {
-  state.polling = true;
-  state.pollAbortController = new AbortController();
-  scheduleNextPoll(statusUrl, 0);
-}
+// startObservation begins (or restarts) observation of state.job in the
+// selected mode. It cancels any previous loop so at most one request is ever
+// outstanding, stamps a fresh generation token so late responses from the old
+// loop can be ignored, fetches one initial prompt snapshot to establish the
+// baseline version (UI-02), and then enters the mode-specific loop.
+async function startObservation() {
+  stopObservation();
+  const token = ++state.generation;
+  const mode = selectedMode();
+  const statusUrl = state.job.status_url;
+  const controller = new AbortController();
+  state.mode = mode;
+  state.observing = true;
+  state.observationAbortController = controller;
+  state.job.mode = mode;
+  renderJobCard(state.job);
 
-function scheduleNextPoll(statusUrl, delay) {
-  state.pollTimeoutId = setTimeout(() => pollOnce(statusUrl), delay);
-}
-
-// pollOnce performs one status GET and decides what happens next: schedule
-// another poll (still queued/processing), stop at a terminal state
-// (completed/failed - POLL-05), or treat the failure as a retrieval error
-// that stops the loop and offers Try again. It never
-// treats "could not reach the server" as "the job failed".
-async function pollOnce(statusUrl) {
-  if (!state.polling || !state.pollAbortController) return;
-  const controller = state.pollAbortController;
-
+  // Initial prompt snapshot: the server never waits on this request (API-01).
   let job;
   try {
-    job = await fetchJobStatus(statusUrl, controller.signal);
+    job = await fetchJobSnapshot(statusUrl, controller.signal);
   } catch (error) {
-    if (controller.signal.aborted) return; // cancelled deliberately - not an error
+    if (token !== state.generation) return; // superseded
+    if (controller.signal.aborted) return; // cancelled deliberately
     handleRetrievalError();
     return;
   }
+  if (token !== state.generation) return;
 
   state.pollCount += 1;
-  mergeJobResponse(job);
-  state.job.__pollCount = state.pollCount;
-  state.job.__ackLatencyMs = state.ackLatencyMs;
-
-  // Detection delay is client observation of completion minus the server's
-  // completed_at (Section 15). Compute it before rendering the card so the
-  // completed UI can show it alongside the other measurements.
-  if (job.status === "completed" && job.completed_at) {
-    state.detectionDelayMs = Date.now() - Date.parse(job.completed_at);
-    state.job.__detectionDelayMs = state.detectionDelayMs;
-  }
-
-  renderJobCard(state.job);
+  applySnapshot(job);
 
   if (job.status === "completed") {
-    stopPolling();
-    renderResults(job.variants);
+    finishCompleted(job);
     return;
   }
-
   if (job.status === "failed") {
-    stopPolling();
-    renderResultsFailed(job.error);
+    finishFailed(job);
     return;
   }
 
-  renderResultsProcessing();
-  scheduleNextPoll(statusUrl, POLL_INTERVAL_MS);
+  if (mode === "long") {
+    longPollLoop(token, statusUrl);
+  } else {
+    shortPollLoop(token, statusUrl);
+  }
 }
 
-function mergeJobResponse(job) {
+// shortPollLoop asks for a prompt snapshot approximately every second until a
+// terminal state, a retrieval error, or cancellation (UI-02).
+async function shortPollLoop(token, statusUrl) {
+  while (token === state.generation) {
+    await sleep(POLL_INTERVAL_MS);
+    if (token !== state.generation) return;
+
+    let job;
+    try {
+      job = await fetchJobStatus(statusUrl, state.observationAbortController.signal);
+    } catch (error) {
+      if (token !== state.generation) return;
+      if (state.observationAbortController.signal.aborted) return;
+      handleRetrievalError();
+      return;
+    }
+    if (token !== state.generation) return;
+
+    state.pollCount += 1;
+    applySnapshot(job);
+
+    if (job.status === "completed") return finishCompleted(job);
+    if (job.status === "failed") return finishFailed(job);
+    renderResultsProcessing();
+  }
+}
+
+// longPollLoop waits for a version newer than the last one it received. A 200
+// is rendered and the next long poll is sent immediately; a 204 keeps the
+// last version and immediately sends another request without parsing JSON;
+// a terminal state stops (UI-03).
+async function longPollLoop(token, statusUrl) {
+  let version = state.job.version;
+
+  while (token === state.generation) {
+    let result;
+    try {
+      result = await observeJobAfter(
+        statusUrl,
+        version,
+        state.observationAbortController.signal
+      );
+    } catch (error) {
+      if (token !== state.generation) return;
+      if (state.observationAbortController.signal.aborted) return;
+      handleRetrievalError();
+      return;
+    }
+    if (token !== state.generation) return;
+
+    state.pollCount += 1;
+
+    // Normal holding-deadline expiry: no newer version, no body. Keep the
+    // last version and continue immediately (UI-03).
+    if (result.status === 204) {
+      state.job.__pollCount = state.pollCount;
+      renderJobCard(state.job);
+      renderResultsProcessing();
+      continue;
+    }
+
+    const job = result.body;
+    version = job.version;
+    applySnapshot(job);
+
+    if (job.status === "completed") return finishCompleted(job);
+    if (job.status === "failed") return finishFailed(job);
+    renderResultsProcessing();
+  }
+}
+
+// applySnapshot merges a server representation into state.job and renders it.
+// It computes the detection delay the moment a completion is observed.
+function applySnapshot(job) {
   state.job = {
     ...state.job,
     status: job.status,
+    version: job.version,
+    mode: state.mode,
     queued_at: job.queued_at,
     started_at: job.started_at,
     completed_at: job.completed_at,
     failed_at: job.failed_at ?? state.job.failed_at,
     error: job.error ?? state.job.error,
     variants: job.variants ?? state.job.variants,
+    __pollCount: state.pollCount,
+    __ackLatencyMs: state.ackLatencyMs,
   };
+
+  if (job.status === "completed" && job.completed_at) {
+    state.detectionDelayMs = Date.now() - Date.parse(job.completed_at);
+    state.job.__detectionDelayMs = state.detectionDelayMs;
+  }
+
+  renderJobCard(state.job);
 }
 
+function finishCompleted(job) {
+  stopObservation();
+  renderJobCard(state.job);
+  renderResults(job.variants);
+}
+
+function finishFailed(job) {
+  stopObservation();
+  renderJobCard(state.job);
+  renderResultsFailed(job.error);
+}
+
+// handleRetrievalError stops observation but preserves the last known state,
+// distinguishing "could not reach the server" from a server-reported failure
+// (UI-05).
 function handleRetrievalError() {
-  state.polling = false;
+  stopObservation();
   state.retrievalError = true;
-  if (state.pollTimeoutId) {
-    clearTimeout(state.pollTimeoutId);
-    state.pollTimeoutId = null;
-  }
   renderJobCard(state.job, { mode: "retrieval-error" });
 }
 
-// resumePolling backs the Try again button (POLL-09/10). It re-requests the
-// same status_url without resubmitting the image or creating a new job.
-function resumePolling() {
-  // If a loop is already running (e.g. a double-click on Try again before the
-  // first response returns), do nothing: two loops would double the GET rate.
-  if (!state.job || !state.job.status_url || state.polling) return;
+// resumeObservation backs Try again (UI-05). It observes the same job using
+// the selected mode and never resubmits the image.
+function resumeObservation() {
+  if (!state.job || !state.job.status_url || state.observing) return;
   state.retrievalError = false;
-  state.polling = true;
-  state.pollAbortController = new AbortController();
-  pollOnce(state.job.status_url);
+  startObservation();
 }
 
-// stopPolling cancels the loop and any in-flight request (POLL-05/POLL-06).
-function stopPolling() {
-  state.polling = false;
-  if (state.pollTimeoutId) {
-    clearTimeout(state.pollTimeoutId);
-    state.pollTimeoutId = null;
-  }
-  if (state.pollAbortController) {
-    state.pollAbortController.abort();
-    state.pollAbortController = null;
+// handleModeChange restarts observation of the current job in the newly
+// selected mode without uploading again (UI-04).
+function handleModeChange() {
+  state.mode = selectedMode();
+  if (!state.job || !state.jobAccepted || isTerminal(state.job.status)) return;
+  startObservation();
+}
+
+// stopObservation cancels the loop and any in-flight request. Incrementing
+// the generation invalidates late responses from the cancelled loop
+// (UI-04).
+function stopObservation() {
+  state.generation += 1;
+  state.observing = false;
+  if (state.observationAbortController) {
+    state.observationAbortController.abort();
+    state.observationAbortController = null;
   }
 }
 
-// A page unload should cancel any in-flight polling request rather than
-// leaving it dangling (POLL-06).
-window.addEventListener("beforeunload", stopPolling);
+// A page unload should cancel any in-flight observation request rather than
+// leaving it dangling (UI-04).
+window.addEventListener("beforeunload", stopObservation);

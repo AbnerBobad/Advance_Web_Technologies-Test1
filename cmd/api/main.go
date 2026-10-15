@@ -51,7 +51,11 @@ type application struct {
 	logger *slog.Logger
 	models data.Models
 	images *files.Store
-	wg     sync.WaitGroup
+	// broadcaster wakes every long-poll waiter for a job after that job's
+	// change has committed (VER-03). The worker signals it; observers wait
+	// on it. PostgreSQL remains the source of truth.
+	broadcaster *jobBroadcaster
+	wg          sync.WaitGroup
 	// workerCancel stops the background image worker during shutdown.
 	workerCancel context.CancelFunc
 }
@@ -94,10 +98,11 @@ func main() {
 	}
 
 	app := &application{
-		config: cfg,
-		logger: logger,
-		models: data.NewModels(db),
-		images: fileStore,
+		config:      cfg,
+		logger:      logger,
+		models:      data.NewModels(db),
+		images:      fileStore,
+		broadcaster: newJobBroadcaster(),
 	}
 
 	// Start a cancellable background worker. Graceful shutdown cancels this

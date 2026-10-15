@@ -107,10 +107,11 @@ function buildTimeline(job) {
   return list;
 }
 
-// buildPollPanel renders exactly one of: the automatic-polling indicator
-// (UI-12), a terminal summary, or the retrieval-error / Try again state
-// (POLL-09). app.js decides which via the `mode` flag; this module only
-// renders it.
+// buildPollPanel renders exactly one of: the observation indicator for the
+// selected mode (UI-01), a terminal summary, or the retrieval-error / Try
+// again state (UI-05). app.js decides which via the `mode` flag; this module
+// only renders it. The selected observation strategy and last observed
+// version come from job.mode and job.version.
 function buildPollPanel(job, mode) {
   const panel = el("div", "poll-panel");
 
@@ -150,14 +151,23 @@ function buildPollPanel(job, mode) {
     return panel;
   }
 
-  // queued or processing: automatic short polling is active.
+  // queued or processing: an automatic observation loop is active. Show the
+  // selected mode and the last observed version (UI-01).
+  const isLong = job.mode === "long";
   const row = el("div", "poll-row");
   row.appendChild(el("span", "poll-spinner"));
-  row.appendChild(el("span", "poll-title", "Checking status automatically"));
+  row.appendChild(
+    el("span", "poll-title", isLong ? "Waiting for the next change" : "Checking status automatically")
+  );
   panel.appendChild(row);
-  panel.appendChild(el("p", "poll-sub", "Every 1 second"));
+  panel.appendChild(
+    el("p", "poll-sub", isLong ? "Long polling (holds up to 20 s)" : "Short polling every 1 second")
+  );
+  if (job.version != null) {
+    panel.appendChild(el("p", "poll-count", "Version " + job.version));
+  }
   if (job.__pollCount) {
-    const label = job.__pollCount + " status check" + (job.__pollCount === 1 ? "" : "s") + " so far";
+    const label = job.__pollCount + " status request" + (job.__pollCount === 1 ? "" : "s") + " so far";
     panel.appendChild(el("p", "poll-count", label));
   }
   return panel;
@@ -235,6 +245,9 @@ export function renderJobCard(job, options) {
   grid.appendChild(main);
 
   const side = el("div", "job-side");
+  side.appendChild(
+    el("span", "mode-chip", job.mode === "long" ? "Long polling" : "Short polling")
+  );
   const badge = STATUS_BADGE[job.status] || { text: job.status || "Unknown", className: "status-badge" };
   side.appendChild(el("span", badge.className, badge.text));
   side.appendChild(buildPollPanel(job, mode));

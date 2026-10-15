@@ -157,3 +157,4 @@ echo
 echo "  time to submit all five: $(fmt_ms $((SUBMIT_END - BURST_BASE)))"
 echo "  wall time, first submission to last completion: $(fmt_ms $((END_MS - BURST_BASE)))"
 echo "  (rising queue wait shows later jobs waiting behind the single worker)"
+

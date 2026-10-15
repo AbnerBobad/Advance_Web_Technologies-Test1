@@ -116,6 +116,19 @@
             <p class="card-desc">Job status and details</p>
           </div>
         </div>
+
+        <fieldset class="mode-select" id="modeSelect">
+          <legend>Observation mode</legend>
+          <label class="mode-option">
+            <input type="radio" name="observationMode" value="short" checked>
+            <span>Short polling</span>
+          </label>
+          <label class="mode-option">
+            <input type="radio" name="observationMode" value="long">
+            <span>Long polling</span>
+          </label>
+        </fieldset>
+
         <div id="jobCardBody" class="job-body">
           <div class="empty-state">
             <span class="empty-icon" aria-hidden="true">

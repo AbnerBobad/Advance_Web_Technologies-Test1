@@ -22,7 +22,10 @@ func (app *application) serve() error {
 		Handler:      app.routes(),
 		IdleTimeout:  time.Minute,
 		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 10 * time.Second,
+		// WriteTimeout must outlast the longest long-poll hold (20s) plus
+		// response time, otherwise the connection is torn down before a
+		// waiting observer can receive its answer (WAIT-03).
+		WriteTimeout: 30 * time.Second,
 	}
 
 	// shutdownError carries the outcome of graceful shutdown back to serve().

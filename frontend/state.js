@@ -12,15 +12,23 @@ export const state = {
   // observed, merged with the fields we already knew from the 202 response.
   // It is never cleared on a retrieval error.
   job: null,
- 
-  // Polling bookkeeping. polling is true only while an automatic 1-second
-  // loop is active. pollAbortController lets a new job or a page/tab change
-  // cancel an in-flight GET. retrievalError is set only when the
-  // browser could not obtain a status response; it must never be confused
-  // with the server reporting status "failed" (see decision rule in spec).
-  polling: false,
-  pollAbortController: null,
-  pollTimeoutId: null,
+
+  // mode is the selected observation strategy: "short" or "long". It is read
+  // from the selector each time an observation loop starts.
+  mode: "short",
+
+  // generation is the observation token. Every observation loop captures the
+  // value it started with; starting or cancelling an observation increments
+  // it, so a stale loop can detect that its answer must be ignored (UI-04).
+  generation: 0,
+
+  // Observation bookkeeping. observing is true only while an automatic loop
+  // is active. observationAbortController lets a new job, a mode switch, or a
+  // page unload cancel an in-flight request. retrievalError is set only when
+  // the browser could not obtain a status response; it must never be confused
+  // with the server reporting status "failed".
+  observing: false,
+  observationAbortController: null,
   retrievalError: false,
   pollCount: 0,
 

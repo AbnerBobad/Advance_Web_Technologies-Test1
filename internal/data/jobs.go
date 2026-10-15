@@ -16,6 +16,7 @@ type Job struct {
 	PublicID    string
 	ImageID     string
 	Status      string
+	Version     int
 	SafeError   *string
 	QueuedAt    time.Time
 	StartedAt   *time.Time
@@ -40,7 +41,7 @@ type JobModel struct {
 
 // GetByPublicID returns the current state of a job for the status endpoint.
 func (m JobModel) GetByPublicID(publicID string) (*Job, error) {
-	query := `SELECT id, public_id, image_id, status, safe_error,
+	query := `SELECT id, public_id, image_id, status, version, safe_error,
 		queued_at, started_at, completed_at, failed_at
 		FROM imagelab.jobs WHERE public_id = $1`
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -48,7 +49,7 @@ func (m JobModel) GetByPublicID(publicID string) (*Job, error) {
 
 	var job Job
 	err := m.DB.QueryRowContext(ctx, query, publicID).Scan(
-		&job.ID, &job.PublicID, &job.ImageID, &job.Status, &job.SafeError,
+		&job.ID, &job.PublicID, &job.ImageID, &job.Status, &job.Version, &job.SafeError,
 		&job.QueuedAt, &job.StartedAt, &job.CompletedAt, &job.FailedAt,
 	)
 	if err != nil {
@@ -88,10 +89,13 @@ func (m JobModel) ClaimNext(ctx context.Context) (*PendingJob, error) {
 		return nil, err
 	}
 
-	// Transition the claimed job from queued to processing.
-	if _, err := tx.ExecContext(ctx,
-		`UPDATE imagelab.jobs SET status = 'processing', started_at = now() WHERE id = $1`,
-		job.ID); err != nil {
+	// Transition the claimed job from queued to processing. Bumping version
+	// in the same statement keeps the status change and the version that
+	// describes it atomic (VER-02).
+	if err := tx.QueryRowContext(ctx,
+		`UPDATE imagelab.jobs SET status = 'processing', started_at = now(), version = version + 1
+		 WHERE id = $1 RETURNING version`,
+		job.ID).Scan(&job.Version); err != nil {
 		return nil, err
 	}
 
@@ -103,21 +107,27 @@ func (m JobModel) ClaimNext(ctx context.Context) (*PendingJob, error) {
 	return &job, nil
 }
 
-// MarkCompleted stamps completion time. Called only after every variant and
-// its metadata are available, so completed never means partial work.
-func (m JobModel) MarkCompleted(ctx context.Context, id string) error {
-	_, err := m.DB.ExecContext(ctx,
-		`UPDATE imagelab.jobs SET status = 'completed', completed_at = now() WHERE id = $1`,
-		id)
-	return err
+// MarkCompleted stamps completion time and bumps the version atomically.
+// Called only after every variant and its metadata are available, so completed
+// never means partial work. It returns the committed version.
+func (m JobModel) MarkCompleted(ctx context.Context, id string) (int, error) {
+	var version int
+	err := m.DB.QueryRowContext(ctx,
+		`UPDATE imagelab.jobs SET status = 'completed', completed_at = now(), version = version + 1
+		 WHERE id = $1 RETURNING version`,
+		id).Scan(&version)
+	return version, err
 }
 
-// MarkFailed records the client-safe reason and stamps failed_at so the
-// status endpoint can report it. The queued-to-processing transition already
-// set started_at, satisfying the jobs_status_times constraint.
-func (m JobModel) MarkFailed(ctx context.Context, id, message string) error {
-	_, err := m.DB.ExecContext(ctx,
-		`UPDATE imagelab.jobs SET status = 'failed', safe_error = $2, failed_at = now() WHERE id = $1`,
-		id, message)
-	return err
+// MarkFailed records the client-safe reason, stamps failed_at, and bumps the
+// version atomically. The queued-to-processing transition already set
+// started_at, satisfying the jobs_status_times constraint. It returns the
+// committed version.
+func (m JobModel) MarkFailed(ctx context.Context, id, message string) (int, error) {
+	var version int
+	err := m.DB.QueryRowContext(ctx,
+		`UPDATE imagelab.jobs SET status = 'failed', safe_error = $2, failed_at = now(), version = version + 1
+		 WHERE id = $1 RETURNING version`,
+		id, message).Scan(&version)
+	return version, err
 }

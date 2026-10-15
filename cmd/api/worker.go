@@ -49,6 +49,9 @@ func (app *application) processNextJob(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	// queued -> processing is an observable change already committed by
+	// ClaimNext, so announce it to any long-poll observers.
+	app.recordChange(job.PublicID, "processing", job.Version)
 	app.logger.Info("image job started", "job_id", job.PublicID,
 		"image_id", job.ImageID)
 
@@ -68,14 +71,14 @@ func (app *application) processNextJob(ctx context.Context) error {
 
 	original, err := app.images.Read(job.StoredFilename)
 	if err != nil {
-		return app.models.Jobs.MarkFailed(ctx, job.ID, "could not read the original image")
+		return app.markFailed(ctx, job.ID, job.PublicID, "could not read the original image")
 	}
 
 	// Generate every variant up front. A failure here means none exist yet.
 	results, err := imageproc.Generate(original)
 	if err != nil {
 		// Failures are recorded on the job so clients can observe them.
-		return app.models.Jobs.MarkFailed(ctx, job.ID, "could not process the image")
+		return app.markFailed(ctx, job.ID, job.PublicID, "could not process the image")
 	}
 
 	// Store each variant file and its metadata. If any step fails, clean up
@@ -86,7 +89,7 @@ func (app *application) processNextJob(ctx context.Context) error {
 		name, err := app.images.Save(res.Data, extensionFor(job.MediaType))
 		if err != nil {
 			removeAll(app.images, saved)
-			return app.models.Jobs.MarkFailed(ctx, job.ID, "could not store the generated variants")
+			return app.markFailed(ctx, job.ID, job.PublicID, "could not store the generated variants")
 		}
 		saved = append(saved, name)
 
@@ -101,16 +104,51 @@ func (app *application) processNextJob(ctx context.Context) error {
 		if err := app.models.Variants.Insert(ctx, variant); err != nil {
 			_ = app.images.Remove(name)
 			removeAll(app.images, saved)
-			return app.models.Jobs.MarkFailed(ctx, job.ID, "could not store the generated variants")
+			return app.markFailed(ctx, job.ID, job.PublicID, "could not store the generated variants")
 		}
 	}
 
 	// Only after every variant and its metadata exist may the job complete.
-	if err := app.models.Jobs.MarkCompleted(ctx, job.ID); err != nil {
+	if err := app.markCompleted(ctx, job.ID, job.PublicID); err != nil {
 		return err
 	}
 	app.logger.Info("image job completed", "job_id", job.PublicID)
 	return nil
+}
+
+// markCompleted commits completion and announces the change. It returns any
+// error from the commit, which is reported to the caller.
+func (app *application) markCompleted(ctx context.Context, jobID, publicID string) error {
+	version, err := app.models.Jobs.MarkCompleted(ctx, jobID)
+	if err != nil {
+		return err
+	}
+	app.recordChange(publicID, "completed", version)
+	return nil
+}
+
+// markFailed commits the safe failure and announces the change, returning the
+// error from the failed commit (nil on success).
+func (app *application) markFailed(ctx context.Context, jobID, publicID, message string) error {
+	version, err := app.models.Jobs.MarkFailed(ctx, jobID, message)
+	if err != nil {
+		return err
+	}
+	app.recordChange(publicID, "failed", version)
+	return nil
+}
+
+// recordChange logs a committed job change with its version and a post-commit
+// wall-clock timestamp, then wakes every long-poll observer of that job. The
+// notification happens strictly after the commit so waiters re-read durable
+// state (VER-03).
+func (app *application) recordChange(publicID, status string, version int) {
+	app.logger.Info("job change committed",
+		"job_id", publicID,
+		"status", status,
+		"version", version,
+		"committed_at", time.Now().UTC().Format(time.RFC3339Nano))
+	app.broadcaster.broadcast(publicID)
 }
 
 // removeAll best-effort deletes every stored file in names.
