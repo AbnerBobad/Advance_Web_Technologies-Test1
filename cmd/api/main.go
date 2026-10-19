@@ -33,7 +33,19 @@ type config struct {
 	// contract: acknowledgement stays fast while later jobs queue.
 	processingDelay    time.Duration
 	workerPollInterval time.Duration
-	db                 struct {
+	// Experimental controls (Section 8). All are disabled by default; when set
+	// they are recorded at startup and used unchanged for every run and for
+	// both observation modes (EXP-01).
+	//
+	// quietDelay adds processing time with no intermediate updates (the
+	// 30-second quiet job, condition A).
+	quietDelay time.Duration
+	// simulateDuration and simulateInterval drive a 10-second simulated update
+	// phase that emits a version-bumping simulation_step on a fixed cadence
+	// before real processing begins (conditions C1/C2/C3).
+	simulateDuration time.Duration
+	simulateInterval time.Duration
+	db               struct {
 		dsn          string
 		maxOpenConns int
 		maxIdleConns int
@@ -67,6 +79,9 @@ func main() {
 	flag.StringVar(&cfg.env, "env", "development", "Environment (development|staging|production)")
 	flag.DurationVar(&cfg.processingDelay, "processing-delay", 0, "Artificial per-job processing delay inside the worker")
 	flag.DurationVar(&cfg.workerPollInterval, "worker-poll-interval", 250*time.Millisecond, "Worker queue-check interval")
+	flag.DurationVar(&cfg.quietDelay, "quiet-delay", 0, "Section 8: processing delay with no intermediate updates (default off; use 30s for condition A)")
+	flag.DurationVar(&cfg.simulateDuration, "simulate-duration", 0, "Section 8: length of the simulated update phase, before real processing (default off; use 10s for conditions C)")
+	flag.DurationVar(&cfg.simulateInterval, "simulate-interval", 2*time.Second, "Section 8: simulated update cadence (2s for C1, 200ms for C2/C3)")
 	flag.StringVar(&cfg.db.dsn, "db-dsn", os.Getenv("POOLING_DB_DSN"), "PostgreSQL DSN")
 	flag.IntVar(&cfg.db.maxOpenConns, "db-max-open-conns", 25, "PostgreSQL max open connections")
 	flag.IntVar(&cfg.db.maxIdleConns, "db-max-idle-conns", 25, "PostgreSQL max idle connections")
@@ -90,6 +105,15 @@ func main() {
 	defer db.Close()
 
 	logger.Info("database connection pool established")
+
+	// Record the experimental configuration once at startup so every run's
+	// conditions are auditable and replayable (EXP-01).
+	logger.Info("experimental controls",
+		"processing_delay", cfg.processingDelay.String(),
+		"quiet_delay", cfg.quietDelay.String(),
+		"simulate_duration", cfg.simulateDuration.String(),
+		"simulate_interval", cfg.simulateInterval.String(),
+		"worker_poll_interval", cfg.workerPollInterval.String())
 
 	fileStore, err := files.NewStore(cfg.uploadDir)
 	if err != nil {

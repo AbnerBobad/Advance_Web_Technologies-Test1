@@ -22,6 +22,19 @@ type Job struct {
 	StartedAt   *time.Time
 	CompletedAt *time.Time
 	FailedAt    *time.Time
+	// Stage names the current step of processing (PROG-01/02), e.g.
+	// "thumbnail_ready". It is null before the worker claims the job and is
+	// held at its last value if the job later fails (PROG-03). It is not a
+	// job status.
+	Stage *string
+	// VariantsCompleted counts variant files actually stored (0..3). It only
+	// advances after a variant and its metadata are durable.
+	VariantsCompleted int
+	// SimulationStep counts simulated progress updates from the experimental
+	// controls (EXP-02). It is null unless a simulated phase ran, and is kept
+	// separate from VariantsCompleted so simulated progress is never confused
+	// with real output.
+	SimulationStep *int
 }
 
 // PendingJob is a claimed job together with the original-image file the worker
@@ -42,15 +55,19 @@ type JobModel struct {
 // GetByPublicID returns the current state of a job for the status endpoint.
 func (m JobModel) GetByPublicID(publicID string) (*Job, error) {
 	query := `SELECT id, public_id, image_id, status, version, safe_error,
-		queued_at, started_at, completed_at, failed_at
+		queued_at, started_at, completed_at, failed_at,
+		stage, variants_completed, simulation_step
 		FROM imagelab.jobs WHERE public_id = $1`
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
 	var job Job
+	var stage sql.NullString
+	var simulationStep sql.NullInt64
 	err := m.DB.QueryRowContext(ctx, query, publicID).Scan(
 		&job.ID, &job.PublicID, &job.ImageID, &job.Status, &job.Version, &job.SafeError,
 		&job.QueuedAt, &job.StartedAt, &job.CompletedAt, &job.FailedAt,
+		&stage, &job.VariantsCompleted, &simulationStep,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -58,7 +75,28 @@ func (m JobModel) GetByPublicID(publicID string) (*Job, error) {
 		}
 		return nil, err
 	}
+	job.Stage = nullString(stage)
+	job.SimulationStep = nullInt(simulationStep)
 	return &job, nil
+}
+
+// nullString converts a nullable TEXT column into a *string, so an unset stage
+// is reported as null rather than an empty string.
+func nullString(ns sql.NullString) *string {
+	if !ns.Valid {
+		return nil
+	}
+	s := ns.String
+	return &s
+}
+
+// nullInt converts a nullable INTEGER column into a *int.
+func nullInt(ni sql.NullInt64) *int {
+	if !ni.Valid {
+		return nil
+	}
+	n := int(ni.Int64)
+	return &n
 }
 
 // ClaimNext atomically grabs the oldest queued job and marks it processing.
@@ -89,13 +127,15 @@ func (m JobModel) ClaimNext(ctx context.Context) (*PendingJob, error) {
 		return nil, err
 	}
 
-	// Transition the claimed job from queued to processing. Bumping version
-	// in the same statement keeps the status change and the version that
-	// describes it atomic (VER-02).
+	// Transition the claimed job from queued to processing and name the first
+	// stage. Bumping version in the same statement keeps the status change,
+	// the stage, and the version that describes them atomic (VER-02, PROG-01).
+	var stage string
 	if err := tx.QueryRowContext(ctx,
-		`UPDATE imagelab.jobs SET status = 'processing', started_at = now(), version = version + 1
-		 WHERE id = $1 RETURNING version`,
-		job.ID).Scan(&job.Version); err != nil {
+		`UPDATE imagelab.jobs
+		 SET status = 'processing', started_at = now(), stage = 'starting', version = version + 1
+		 WHERE id = $1 RETURNING version, stage`,
+		job.ID).Scan(&job.Version, &stage); err != nil {
 		return nil, err
 	}
 
@@ -104,18 +144,20 @@ func (m JobModel) ClaimNext(ctx context.Context) (*PendingJob, error) {
 	}
 
 	job.Status = "processing"
+	job.Stage = &stage
 	return &job, nil
 }
 
-// MarkCompleted stamps completion time and bumps the version atomically.
-// Called only after every variant and its metadata are available, so completed
-// never means partial work. It returns the committed version.
-func (m JobModel) MarkCompleted(ctx context.Context, id string) (int, error) {
+// AdvanceSimulation records the next simulated progress step and bumps the
+// version atomically (EXP-02). It touches only simulation_step, so a simulated
+// update never changes variants_completed or the job status. The caller logs
+// the actual commit time after this returns.
+func (m JobModel) AdvanceSimulation(ctx context.Context, id string, step int) (int, error) {
 	var version int
 	err := m.DB.QueryRowContext(ctx,
-		`UPDATE imagelab.jobs SET status = 'completed', completed_at = now(), version = version + 1
+		`UPDATE imagelab.jobs SET simulation_step = $2, version = version + 1
 		 WHERE id = $1 RETURNING version`,
-		id).Scan(&version)
+		id, step).Scan(&version)
 	return version, err
 }
 

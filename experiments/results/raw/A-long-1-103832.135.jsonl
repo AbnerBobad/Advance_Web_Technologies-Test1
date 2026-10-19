@@ -1,0 +1,14 @@
+{"at":"2026-10-19T16:38:32.171382978Z","run":"A-long-1-103832.135","event":"ack","http":202,"version":1,"note":"50b1433d-c4a2-4bb6-a2a6-19d0f2408d83"}
+{"at":"2026-10-19T16:38:32.171473223Z","run":"A-long-1-103832.135","event":"request","seq":1,"mode":"long","note":"http://localhost:4000/v1/jobs/50b1433d-c4a2-4bb6-a2a6-19d0f2408d83"}
+{"at":"2026-10-19T16:38:32.172426346Z","run":"A-long-1-103832.135","event":"response","seq":1,"mode":"long","http":200,"version":1,"status":"queued"}
+{"at":"2026-10-19T16:38:32.172455104Z","run":"A-long-1-103832.135","event":"request","seq":2,"mode":"long","note":"http://localhost:4000/v1/jobs/50b1433d-c4a2-4bb6-a2a6-19d0f2408d83?after=1\u0026wait=20"}
+{"at":"2026-10-19T16:38:32.396502786Z","run":"A-long-1-103832.135","event":"response","seq":2,"mode":"long","http":200,"version":2,"status":"processing"}
+{"at":"2026-10-19T16:38:32.396687341Z","run":"A-long-1-103832.135","event":"request","seq":3,"mode":"long","note":"http://localhost:4000/v1/jobs/50b1433d-c4a2-4bb6-a2a6-19d0f2408d83?after=2\u0026wait=20"}
+{"at":"2026-10-19T16:38:52.413312003Z","run":"A-long-1-103832.135","event":"response","seq":3,"mode":"long","http":204}
+{"at":"2026-10-19T16:38:52.413366425Z","run":"A-long-1-103832.135","event":"request","seq":4,"mode":"long","note":"http://localhost:4000/v1/jobs/50b1433d-c4a2-4bb6-a2a6-19d0f2408d83?after=2\u0026wait=20"}
+{"at":"2026-10-19T16:39:02.536962403Z","run":"A-long-1-103832.135","event":"response","seq":4,"mode":"long","http":200,"version":3,"status":"processing"}
+{"at":"2026-10-19T16:39:02.536985692Z","run":"A-long-1-103832.135","event":"request","seq":5,"mode":"long","note":"http://localhost:4000/v1/jobs/50b1433d-c4a2-4bb6-a2a6-19d0f2408d83?after=3\u0026wait=20"}
+{"at":"2026-10-19T16:39:02.545301777Z","run":"A-long-1-103832.135","event":"response","seq":5,"mode":"long","http":200,"version":4,"status":"processing"}
+{"at":"2026-10-19T16:39:02.545317148Z","run":"A-long-1-103832.135","event":"request","seq":6,"mode":"long","note":"http://localhost:4000/v1/jobs/50b1433d-c4a2-4bb6-a2a6-19d0f2408d83?after=4\u0026wait=20"}
+{"at":"2026-10-19T16:39:02.548742094Z","run":"A-long-1-103832.135","event":"response","seq":6,"mode":"long","http":200,"version":5,"status":"completed"}
+{"at":"2026-10-19T16:39:02.548752397Z","run":"A-long-1-103832.135","event":"terminal","http":200,"version":5,"status":"completed"}

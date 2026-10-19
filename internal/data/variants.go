@@ -20,21 +20,12 @@ type Variant struct {
 	CreatedAt      time.Time
 }
 
-// VariantModel wraps the database pool for variants-table operations. Rows are
-// inserted only by the background worker after the variant file is stored.
+// VariantModel wraps the database pool for variants-table read operations.
+// Rows are written only by the background worker through
+// Models.RecordVariantProgress, which stores the variant and the resulting job
+// progress in one transaction.
 type VariantModel struct {
 	DB *sql.DB
-}
-
-// Insert persists one generated variant and fills in the DB-generated fields.
-func (m VariantModel) Insert(ctx context.Context, variant *Variant) error {
-	query := `INSERT INTO imagelab.variants (image_id, name, stored_filename, width, height, size_bytes)
-		VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, created_at`
-	err := m.DB.QueryRowContext(ctx, query,
-		variant.ImageID, variant.Name, variant.StoredFilename,
-		variant.Width, variant.Height, variant.SizeBytes,
-	).Scan(&variant.ID, &variant.CreatedAt)
-	return err
 }
 
 // GetByImageID returns every variant owned by an image, used to render the

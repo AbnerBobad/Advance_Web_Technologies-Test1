@@ -1,0 +1,6 @@
+{"at":"2026-10-19T16:40:04.106595073Z","run":"B-short-2-104004.069","event":"ack","http":202,"version":1,"note":"8965b432-45bb-413c-b7ec-06852e6997db"}
+{"at":"2026-10-19T16:40:04.106660781Z","run":"B-short-2-104004.069","event":"request","seq":1,"mode":"short","note":"http://localhost:4000/v1/jobs/8965b432-45bb-413c-b7ec-06852e6997db"}
+{"at":"2026-10-19T16:40:04.108263877Z","run":"B-short-2-104004.069","event":"response","seq":1,"mode":"short","http":200,"version":1,"status":"queued"}
+{"at":"2026-10-19T16:40:05.108603403Z","run":"B-short-2-104004.069","event":"request","seq":2,"mode":"short","note":"http://localhost:4000/v1/jobs/8965b432-45bb-413c-b7ec-06852e6997db"}
+{"at":"2026-10-19T16:40:05.111683409Z","run":"B-short-2-104004.069","event":"response","seq":2,"mode":"short","http":200,"version":5,"status":"completed"}
+{"at":"2026-10-19T16:40:05.121551204Z","run":"B-short-2-104004.069","event":"terminal","http":200,"version":5,"status":"completed"}

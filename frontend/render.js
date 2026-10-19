@@ -26,6 +26,17 @@ function el(tag, className, text) {
 
 const ICONS = { done: "\u2713", error: "!" };
 
+// STAGE_LABELS turns the server's progress stage into human text. The stage
+// names the current step of processing (PROG-01); it is not a job status.
+const STAGE_LABELS = {
+  starting: "Starting",
+  thumbnail_ready: "Thumbnail ready",
+  preview_ready: "Preview ready",
+  display_ready: "Display ready",
+};
+
+const TOTAL_VARIANTS = 3;
+
 export function renderPreview(file, objectURL) {
   const previewArea = document.getElementById("previewArea");
   const previewImage = document.getElementById("previewImage");
@@ -163,6 +174,26 @@ function buildPollPanel(job, mode) {
   panel.appendChild(
     el("p", "poll-sub", isLong ? "Long polling (holds up to 20 s)" : "Short polling every 1 second")
   );
+
+  // Progress (PROG-01..03). Real progress is the stage plus the number of
+  // variant files actually stored. The simulated phase (EXP-02) is shown
+  // separately and explicitly labelled "Simulated progress" so it is never
+  // mistaken for real output; partial results are never shown as completed.
+  if (job.stage) {
+    panel.appendChild(
+      el("p", "poll-progress", "Stage: " + (STAGE_LABELS[job.stage] || job.stage))
+    );
+  }
+  if (job.variants_completed != null) {
+    panel.appendChild(
+      el("p", "poll-progress", "Variants: " + job.variants_completed + " of " + TOTAL_VARIANTS)
+    );
+  }
+  if (job.simulation_step != null) {
+    panel.appendChild(
+      el("p", "poll-progress poll-progress--simulated", "Simulated progress: step " + job.simulation_step)
+    );
+  }
   if (job.version != null) {
     panel.appendChild(el("p", "poll-count", "Version " + job.version));
   }

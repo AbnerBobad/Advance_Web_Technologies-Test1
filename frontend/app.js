@@ -194,6 +194,11 @@ function beginObservingJob(accepted) {
     failed_at: null,
     error: null,
     variants: null,
+    // Progress (PROG-01..03): stage and stored-variant count, plus the
+    // separate simulated-step counter (EXP-02).
+    stage: null,
+    variants_completed: 0,
+    simulation_step: null,
   };
   state.retrievalError = false;
   state.pollCount = 0;
@@ -335,6 +340,11 @@ function applySnapshot(job) {
     failed_at: job.failed_at ?? state.job.failed_at,
     error: job.error ?? state.job.error,
     variants: job.variants ?? state.job.variants,
+    // Progress is monotonic while processing; a failure keeps the last known
+    // progress (PROG-03), which the ?? fallbacks preserve.
+    stage: job.stage ?? state.job.stage,
+    variants_completed: job.variants_completed ?? state.job.variants_completed,
+    simulation_step: job.simulation_step ?? state.job.simulation_step,
     __pollCount: state.pollCount,
     __ackLatencyMs: state.ackLatencyMs,
   };

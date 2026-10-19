@@ -898,6 +898,17 @@ body {
   margin-top: 6px;
 }
 
+.poll-progress {
+  font-size: 0.76rem;
+  color: var(--text);
+  margin-top: 6px;
+}
+
+.poll-progress--simulated {
+  color: var(--accent, #7fb0d8);
+  font-style: italic;
+}
+
 .poll-retry {
   margin-top: 10px;
   width: 100%;

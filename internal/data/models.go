@@ -56,3 +56,50 @@ func (m Models) AcceptOriginal(image *Image, job *Job) error {
 
 	return tx.Commit()
 }
+
+// RecordVariantProgress stores one generated variant and the resulting job
+// progress (stage + variants_completed) in a single transaction (PROG-01).
+// When finish is true it also completes the job in the same transaction, so
+// the final variant milestone and the completed status share one version
+// increment (PROG-02). Either the variant row and the progress update both
+// commit, or neither does, so progress always reflects durable output.
+func (m Models) RecordVariantProgress(ctx context.Context, jobID string, variant *Variant, stage string, count int, finish bool) (int, error) {
+	tx, err := m.Jobs.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+
+	err = tx.QueryRowContext(ctx, `
+		INSERT INTO imagelab.variants (image_id, name, stored_filename, width, height, size_bytes)
+		VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, created_at`,
+		variant.ImageID, variant.Name, variant.StoredFilename,
+		variant.Width, variant.Height, variant.SizeBytes,
+	).Scan(&variant.ID, &variant.CreatedAt)
+	if err != nil {
+		return 0, err
+	}
+
+	var version int
+	if finish {
+		err = tx.QueryRowContext(ctx, `
+			UPDATE imagelab.jobs
+			SET status = 'completed', completed_at = now(), stage = $2, variants_completed = $3, version = version + 1
+			WHERE id = $1 RETURNING version`,
+			jobID, stage, count).Scan(&version)
+	} else {
+		err = tx.QueryRowContext(ctx, `
+			UPDATE imagelab.jobs
+			SET stage = $2, variants_completed = $3, version = version + 1
+			WHERE id = $1 RETURNING version`,
+			jobID, stage, count).Scan(&version)
+	}
+	if err != nil {
+		return 0, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+	return version, nil
+}

@@ -54,19 +54,26 @@ func (app *application) getJobHandler(w http.ResponseWriter, r *http.Request) {
 // Cache-Control: no-store so no cache serves a stale snapshot (API-03).
 func (app *application) writeJobSnapshot(w http.ResponseWriter, r *http.Request, job *data.Job) error {
 	response := envelope{
-		"id":           job.PublicID,
-		"image_id":     job.ImageID,
-		"status":       job.Status,
-		"version":      job.Version,
-		"queued_at":    job.QueuedAt,
-		"started_at":   job.StartedAt,
-		"completed_at": job.CompletedAt,
+		"id":                 job.PublicID,
+		"image_id":           job.ImageID,
+		"status":             job.Status,
+		"version":            job.Version,
+		"stage":              job.Stage,
+		"variants_completed": job.VariantsCompleted,
+		"queued_at":          job.QueuedAt,
+		"started_at":         job.StartedAt,
+		"completed_at":       job.CompletedAt,
 	}
 	if job.SafeError != nil {
 		response["error"] = *job.SafeError
 	}
 	if job.FailedAt != nil {
 		response["failed_at"] = job.FailedAt
+	}
+	// simulation_step is present only when a simulated phase ran, so clients
+	// can label it as simulated progress rather than real output (EXP-02).
+	if job.SimulationStep != nil {
+		response["simulation_step"] = *job.SimulationStep
 	}
 
 	// Variants exist only at completion; the worker records them before the
