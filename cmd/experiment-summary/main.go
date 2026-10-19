@@ -121,10 +121,10 @@ func readRows(path string) ([]row, error) {
 			condition:    get(rec, "condition"),
 			label:        get(rec, "condition_label"),
 			mode:         get(rec, "mode"),
-			detectionMS:  atof(get(rec, "completion_detection_ms")),
-			requests:     atoi(get(rec, "total_requests")),
+			detectionMS:  atof(get(rec, "detection_ms")),
+			requests:     atoi(get(rec, "requests_started")),
 			coverage:     atof(get(rec, "version_coverage")),
-			processingMS: atof(get(rec, "processing_duration_ms")),
+			processingMS: atof(get(rec, "processing_ms")),
 		})
 	}
 	return out, nil

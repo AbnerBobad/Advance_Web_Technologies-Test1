@@ -66,14 +66,26 @@ wait_ready() {
 }
 
 # run_condition <id> <label> <server flags...>
+# Modes alternate their order between conditions so neither mode is always
+# first (fairness control).
+RUN_INDEX=0
 run_condition() {
   local id="$1" label="$2"; shift 2
   local server_flags=("$@")
   local log="$LOG_DIR/$id.log"
 
+  RUN_INDEX=$((RUN_INDEX + 1))
+  local modes
+  if (( RUN_INDEX % 2 == 1 )); then
+    modes=(short long)
+  else
+    modes=(long short)
+  fi
+
   echo
   echo "=== condition $id: $label ==="
   echo "server flags: ${server_flags[*]:-(none)}"
+  echo "mode order: ${modes[*]}"
 
   /tmp/imagelab-api -port "$PORT" "${server_flags[@]}" > "$log" 2>&1 &
   SERVER_PID=$!
@@ -84,7 +96,8 @@ run_condition() {
     return 1
   fi
 
-  for mode in short long; do
+  local mode
+  for mode in "${modes[@]}"; do
     /tmp/imagelab-exp \
       -base "$BASE" \
       -image "$IMAGE" \

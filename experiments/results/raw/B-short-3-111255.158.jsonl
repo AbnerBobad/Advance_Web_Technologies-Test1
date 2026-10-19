@@ -1,0 +1,6 @@
+{"at":"2026-10-19T17:12:55.207778324Z","run":"B-short-3-111255.158","event":"ack","http":202,"version":1,"note":"e8ed5229-bf3f-4236-97b2-13d8ea4c026e"}
+{"at":"2026-10-19T17:12:55.207870941Z","run":"B-short-3-111255.158","event":"request","seq":1,"mode":"short","note":"http://localhost:4000/v1/jobs/e8ed5229-bf3f-4236-97b2-13d8ea4c026e"}
+{"at":"2026-10-19T17:12:55.20875925Z","run":"B-short-3-111255.158","event":"response","seq":1,"mode":"short","http":200,"version":1,"status":"queued"}
+{"at":"2026-10-19T17:12:56.20959639Z","run":"B-short-3-111255.158","event":"request","seq":2,"mode":"short","note":"http://localhost:4000/v1/jobs/e8ed5229-bf3f-4236-97b2-13d8ea4c026e"}
+{"at":"2026-10-19T17:12:56.213597385Z","run":"B-short-3-111255.158","event":"response","seq":2,"mode":"short","http":200,"version":5,"status":"completed"}
+{"at":"2026-10-19T17:12:56.213684624Z","run":"B-short-3-111255.158","event":"terminal","http":200,"version":5,"status":"completed"}

@@ -1,0 +1,12 @@
+{"at":"2026-10-19T17:12:52.595397131Z","run":"B-long-2-111252.585","event":"ack","http":202,"version":1,"note":"c2ab21be-56f9-487d-9de1-8a35c6871e60"}
+{"at":"2026-10-19T17:12:52.595457877Z","run":"B-long-2-111252.585","event":"request","seq":1,"mode":"long","note":"http://localhost:4000/v1/jobs/c2ab21be-56f9-487d-9de1-8a35c6871e60"}
+{"at":"2026-10-19T17:12:52.595864059Z","run":"B-long-2-111252.585","event":"response","seq":1,"mode":"long","http":200,"version":1,"status":"queued"}
+{"at":"2026-10-19T17:12:52.595873533Z","run":"B-long-2-111252.585","event":"request","seq":2,"mode":"long","note":"http://localhost:4000/v1/jobs/c2ab21be-56f9-487d-9de1-8a35c6871e60?after=1\u0026wait=20"}
+{"at":"2026-10-19T17:12:52.693233294Z","run":"B-long-2-111252.585","event":"response","seq":2,"mode":"long","http":200,"version":2,"status":"processing"}
+{"at":"2026-10-19T17:12:52.6933007Z","run":"B-long-2-111252.585","event":"request","seq":3,"mode":"long","note":"http://localhost:4000/v1/jobs/c2ab21be-56f9-487d-9de1-8a35c6871e60?after=2\u0026wait=20"}
+{"at":"2026-10-19T17:12:52.80976543Z","run":"B-long-2-111252.585","event":"response","seq":3,"mode":"long","http":200,"version":3,"status":"processing"}
+{"at":"2026-10-19T17:12:52.809781361Z","run":"B-long-2-111252.585","event":"request","seq":4,"mode":"long","note":"http://localhost:4000/v1/jobs/c2ab21be-56f9-487d-9de1-8a35c6871e60?after=3\u0026wait=20"}
+{"at":"2026-10-19T17:12:52.813766886Z","run":"B-long-2-111252.585","event":"response","seq":4,"mode":"long","http":200,"version":4,"status":"processing"}
+{"at":"2026-10-19T17:12:52.813789464Z","run":"B-long-2-111252.585","event":"request","seq":5,"mode":"long","note":"http://localhost:4000/v1/jobs/c2ab21be-56f9-487d-9de1-8a35c6871e60?after=4\u0026wait=20"}
+{"at":"2026-10-19T17:12:52.817324709Z","run":"B-long-2-111252.585","event":"response","seq":5,"mode":"long","http":200,"version":5,"status":"completed"}
+{"at":"2026-10-19T17:12:52.817337727Z","run":"B-long-2-111252.585","event":"terminal","http":200,"version":5,"status":"completed"}

@@ -1,11 +1,18 @@
 # ImageLab
 ![ImageLab UI](https://github.com/user-attachments/assets/0e648f1a-700e-4da6-a913-41663e150807)
 
-Asynchronous image processing with **202 Accepted** and **one-second short polling**.
+Asynchronous image processing with **202 Accepted**, **durable job versions**,
+and two observation mechanisms: **one-second short polling** (Version 1) and
+**long polling** (Version 2).
 
 The upload request accepts and preserves the work. A background worker performs
-the transformation. PostgreSQL owns the authoritative job state, and the
-browser observes that state through short polling.
+the transformation. PostgreSQL owns the authoritative job state, and the browser
+observes that state either by asking every second or by holding a request open
+until a newer version exists. The response contract is identical for both
+modes; only the way the client waits for change differs.
+
+See **[REPORT.md](REPORT.md)** for the Version 2 measurement study, and
+**[experiments/DEMO.md](experiments/DEMO.md)** for the walkthrough script.
 
 ## Architecture
 
@@ -122,6 +129,8 @@ Rejections use client-safe status codes (400/413/415) and never create a job.
 ```
 cmd/api/            HTTP server: main, routes, server, helpers, errors,
                     healthcheck, images (upload handler), jobs, variants, worker
+cmd/experiment/     Headless long/short-poll experiment client (Version 2)
+cmd/experiment-summary/  Summarises runs.csv and draws the SVG charts
 frontend/           Vanilla JS client: app.js, state.js, render.js,
                     modules/data-service.js, style.css
 internal/data/      Database models: images, jobs, variants, Models aggregate
@@ -131,7 +140,9 @@ internal/validator/ Field-validation helper
 migrations/         golang-migrate up/down pairs (imagelab schema)
 scripts/smoke.sh    Repeatable API acceptance checks
 scripts/measure.sh  Week 4 measurement harness (single image + five-image burst)
-scripts/gen_assets.go  Fixture generator used by both scripts
+scripts/experiment.sh  Version 2 experiment orchestrator
+scripts/gen_assets.go  Fixture generator used by all scripts
+experiments/        Predictions, results (runs.csv, summary.csv, charts), demo script
 Makefile            run, migrate, tidy, audit, build, smoke, measure targets
 ```
 
@@ -159,6 +170,129 @@ make measure
 The job card also reports the measured lifecycle (acknowledge latency, queue
 wait, processing, job duration, polling count, detection delay) once a job
 reaches a terminal state.
+
+# Version 2 — Long Polling, Versions, and Experiments
+
+## Assessment 1 baseline
+
+Version 1 (the Assessment 1 deliverable) is tagged **`assessment1-baseline`**
+(commit `7f8c56d`, "Fix Week 4 Progress Report link in README"). Everything
+after that tag is Version 2 work:
+
+```sh
+git show --stat assessment1-baseline   # last Version 1 commit
+git log --oneline assessment1-baseline..HEAD   # Version 2 commits
+```
+
+## What Version 2 adds
+
+- **Durable job versions** — `jobs.version` (migration `000004`) is a monotonic
+  counter bumped on every state or progress change for a job.
+- **Progress fields** — `jobs.stage`, `jobs.variants_completed`, and
+  `jobs.simulation_step` (migration `000005`).
+- **Prompt snapshot** — `GET /v1/jobs/{id}` never waits (API-01).
+- **Long polling** — `GET /v1/jobs/{id}?after=<n>&wait=<secs>` holds the
+  connection until a version newer than `after` exists, the deadline passes, or
+  the client cancels (API-02).
+- **Observable progress UI** — the job card shows `Stage`, `Variants: X of 3`,
+  and, only when a simulated phase runs, an italic `Simulated progress: step N`.
+- **An experiment harness** — `cmd/experiment`, `cmd/experiment-summary`, and
+  `scripts/experiment.sh` (see below).
+
+## Version 2 API
+
+### `GET /v1/jobs/{id}` — prompt snapshot
+
+Returns the current snapshot immediately and never holds. The response is the
+Version 1 body plus `version`, `stage`, and `variants_completed`
+(and `simulation_step` only when a simulated phase has run).
+
+### `GET /v1/jobs/{id}?after=<n>&wait=<secs>` — long poll
+
+| Parameter | Rules |
+| :-- | :-- |
+| `after` | Non-negative integer version. Required to long-poll. |
+| `wait` | 1–20 seconds; default 20 when `after` is present. |
+
+| Situation | Response |
+| :-- | :-- |
+| A version newer than `after` exists | `200` immediately with that snapshot |
+| `after` equals the current version | Hold until change or deadline |
+| Holding deadline passes (still no change) | `204 No Content` (state re-checked first) |
+| `after` > current version | `400 Bad Request` |
+| Unknown job id | `404 Not Found` |
+| Malformed `after`/`wait` | `400 Bad Request` |
+
+Observation responses carry `Cache-Control: no-store` so a held response is
+never served from a cache.
+
+```sh
+# prompt: returns at once with version 1
+curl -s "$BASE/v1/jobs/$JOB_ID" -D - -o /dev/null
+
+# long poll: holds until a version newer than 1 exists (or 20s)
+curl -s "$BASE/v1/jobs/$JOB_ID?after=1&wait=20" -D -
+```
+
+The browser client uses the same contract: `frontend/app.js` has a
+`shortPollLoop` (one request per second) and a `longPollLoop` (next request
+issued immediately after each active `200` or holding-deadline `204`).
+
+## Choosing an observation mode
+
+The UI has an **Observation mode** control (`frontend/index.html`); picking a new
+mode restarts observation of the *same* job without re-uploading:
+
+- **Short polling** — one `GET` per second while queued/processing. Low,
+  predictable request count; completion is detected at the next tick.
+- **Long polling** — the server wakes the client on each version. Near-instant
+  detection and full progress visibility, at a request count proportional to how
+  often the job changes.
+
+See `REPORT.md` for the measured trade-off and a recommendation.
+
+## Simulation and experimental controls
+
+These server flags (all default off) make a short real job observable, exactly
+as the assignment requires. The server logs the active controls on startup.
+
+| Flag | Default | Purpose |
+| :-- | :-- | :-- |
+| `-processing-delay` | `0` | Real per-job work delay inside the worker. |
+| `-quiet-delay` | `0` | Delay a job with **no** intermediate updates (condition A). |
+| `-simulate-duration` | `0` | Length of a **simulated** phase before real work. |
+| `-simulate-interval` | `2s` | Update cadence during the simulated phase. |
+
+`-simulate-*` produces *simulated, not real*, progress; it is labelled as such
+in the API (`simulation_step`), the UI, and the experiment `notes` column.
+
+```sh
+# observable real progress on a short job
+go run ./cmd/api -simulate-duration=10s -simulate-interval=200ms
+```
+
+## Reproducing the experiment
+
+```sh
+make db/migrations/up      # schema must be at version 5
+bash scripts/experiment.sh # ~7 minutes; restarts the server per condition
+```
+
+This writes, under `experiments/results/`:
+
+| File | Contents |
+| :-- | :-- |
+| `runs.csv` | 30 raw runs (5 conditions × 2 modes × 3 reps), required columns first |
+| `summary.csv` | median / min–max detection delay and request count per cell |
+| `chart-detection.svg`, `chart-requests.svg` | comparison charts |
+| `raw/*.jsonl` | per-run event log (requests, responses, terminal) |
+| `logs/*.log` | per-condition server log (includes post-commit times) |
+
+The conditions are A (quiet 30 s), B (real progress), C1 (simulated 10 s @ 2 s),
+C2 (simulated 10 s @ 200 ms), and C3 (C2 + 200 ms client round-trip). Predictions
+were recorded in `experiments/predictions.md` before the runs. The headless Go
+client drives the same loops as the browser because no browser-automation stack
+is available in this environment.
 
 # Week 1 Report
 

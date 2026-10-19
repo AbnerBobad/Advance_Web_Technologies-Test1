@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"time"
 )
 
@@ -86,36 +87,44 @@ type config struct {
 }
 
 type result struct {
-	runID              string
-	jobID              string
-	condition          string
-	label              string
-	mode               string
-	rep                int
-	quietDelayMS       int
-	simulateDurMS      int
-	simulateIntMS      int
-	latencyMS          int
-	uploadAckMS        float64
-	detectionMS        float64
-	processingMS       float64
-	jobDurationMS      float64
-	initial200         int
-	newer200           int
-	unchanged200       int
-	noContent204       int
-	errors             int
-	cancellations      int
-	totalRequests      int
-	versionFirstSeen   int
-	versionLastSeen    int
-	versionFinal       int
+	runID          string
+	jobID          string
+	image          string
+	condition      string
+	label          string
+	mode           string
+	rep            int
+	latencySetting string
+	quietDelayMS   int
+	simulateDurMS  int
+	simulateIntMS  int
+	latencyMS      int
+	uploadAckMS    float64
+	promptGetMS    float64
+	detectionMS    float64
+	processingMS   float64
+	jobDurationMS  float64
+	initial200     int
+	newer200       int
+	unchanged200   int
+	noContent204   int
+	errors         int
+	cancellations  int
+	totalRequests  int
+	// dbReads counts observation requests that reached the server and read
+	// authoritative state (every 200 and every deadline recheck that became a
+	// 204). The held wait itself never polls the database.
+	dbReads            int
+	baselineVersion    int
+	terminalVersion    int
+	distinctNewSeen    int
 	versionCoverage    float64
 	variantsCompleted  int
 	status             string
 	serverCompletedAt  string
 	clientCompletedAt  string
 	observationStartAt string
+	notes              string
 }
 
 func main() {
@@ -198,13 +207,24 @@ func runOnce(client *http.Client, cfg config, rep int) (*result, error) {
 	}
 	logEvent(event{Event: "ack", HTTP: 202, Version: accepted.Version, Note: accepted.JobID})
 
+	// latencySetting documents the actual added-latency configuration
+	// verbatim (the brief asks to report the actual setting if tooling cannot
+	// produce exactly 200 ms).
+	latencySetting := "none"
+	if cfg.latencyMS > 0 {
+		latencySetting = fmt.Sprintf("%dms added round-trip (%dms before + %dms after each observation request)",
+			cfg.latencyMS, cfg.latencyMS/2, cfg.latencyMS/2)
+	}
+
 	res := &result{
 		runID:              runID,
 		jobID:              accepted.JobID,
+		image:              filepath.Base(cfg.image),
 		condition:          cfg.condition,
 		label:              cfg.label,
 		mode:               cfg.mode,
 		rep:                rep,
+		latencySetting:     latencySetting,
 		quietDelayMS:       cfg.quietDelayMS,
 		simulateDurMS:      cfg.simulateDurMS,
 		simulateIntMS:      cfg.simulateIntMS,
@@ -212,13 +232,16 @@ func runOnce(client *http.Client, cfg config, rep int) (*result, error) {
 		uploadAckMS:        ackMS,
 		status:             accepted.Status,
 		observationStartAt: time.Now().UTC().Format(time.RFC3339Nano),
+		notes:              runNotes(cfg),
 	}
 
 	statusURL := cfg.base + accepted.StatusURL
 	latencyHalf := time.Duration(cfg.latencyMS/2) * time.Millisecond
 
-	// seenVersions records every version number observed, for coverage.
-	seen := map[int]bool{accepted.Version: true}
+	// seen records every version number actually received from an observation
+	// GET. The baseline is the first observed version, so versions that only
+	// existed in the 202 response are not counted.
+	seen := map[int]bool{}
 	versionFirstSeen := -1
 	versionLastSeen := accepted.Version
 	var terminal snapshot
@@ -229,24 +252,29 @@ func runOnce(client *http.Client, cfg config, rep int) (*result, error) {
 			time.Sleep(latencyHalf)
 		}
 		logEvent(event{Event: "request", Seq: seq, Mode: cfg.mode, Note: url})
+		rtStart := time.Now()
 		resp, err := client.Get(url)
 		if err != nil {
 			logEvent(event{Event: "error", Seq: seq, Note: err.Error()})
 			return nil, 0, false, err
 		}
 		defer resp.Body.Close()
-		if latencyHalf > 0 {
-			time.Sleep(latencyHalf)
-		}
 		res.totalRequests++
 
 		if resp.StatusCode == http.StatusNoContent {
 			res.noContent204++
+			res.dbReads++
+			if latencyHalf > 0 {
+				time.Sleep(latencyHalf)
+			}
 			logEvent(event{Event: "response", Seq: seq, HTTP: 204, Mode: cfg.mode})
 			return nil, 204, false, nil
 		}
 		if resp.StatusCode != http.StatusOK {
 			res.errors++
+			if latencyHalf > 0 {
+				time.Sleep(latencyHalf)
+			}
 			logEvent(event{Event: "response", Seq: seq, HTTP: resp.StatusCode, Mode: cfg.mode})
 			return nil, resp.StatusCode, false, fmt.Errorf("HTTP %d", resp.StatusCode)
 		}
@@ -256,6 +284,15 @@ func runOnce(client *http.Client, cfg config, rep int) (*result, error) {
 			res.errors++
 			logEvent(event{Event: "error", Seq: seq, Note: err.Error()})
 			return nil, 200, false, err
+		}
+		res.dbReads++
+		if seq == 1 {
+			// Prompt-GET timing check: the real HTTP round trip, excluding the
+			// documented injected latency sleeps.
+			res.promptGetMS = float64(time.Since(rtStart).Microseconds()) / 1000.0
+		}
+		if latencyHalf > 0 {
+			time.Sleep(latencyHalf)
 		}
 
 		if versionFirstSeen == -1 {
@@ -289,7 +326,7 @@ func runOnce(client *http.Client, cfg config, rep int) (*result, error) {
 	}
 
 	if term {
-		finalize(res, cfg, terminal, seen, versionFirstSeen, versionLastSeen, logEvent)
+		finalize(res, cfg, terminal, seen, versionFirstSeen, logEvent)
 		return res, nil
 	}
 
@@ -337,35 +374,42 @@ func runOnce(client *http.Client, cfg config, rep int) (*result, error) {
 		}
 	}
 
-	finalize(res, cfg, terminal, seen, versionFirstSeen, versionLastSeen, logEvent)
+	finalize(res, cfg, terminal, seen, versionFirstSeen, logEvent)
 	return res, nil
 }
 
 // applySnapshot copies progress fields from a snapshot onto the result.
 func applySnapshot(res *result, s *snapshot) {
 	res.status = s.Status
-	res.versionLastSeen = s.Version
 	res.variantsCompleted = s.VariantsCompleted
 }
 
 // finalize fills the derived metrics, joins the server commit time, and logs
 // the terminal event.
-func finalize(res *result, cfg config, terminal snapshot, seen map[int]bool, versionFirstSeen, versionLastSeen int, logEvent func(event)) {
+func finalize(res *result, cfg config, terminal snapshot, seen map[int]bool, versionFirstSeen int, logEvent func(event)) {
 	if versionFirstSeen == -1 {
 		versionFirstSeen = terminal.Version
 	}
-	res.versionFirstSeen = versionFirstSeen
-	res.versionLastSeen = terminal.Version
-	res.versionFinal = terminal.Version
+	res.baselineVersion = versionFirstSeen
+	res.terminalVersion = terminal.Version
 
+	// Distinct versions received, and the "new" versions beyond the baseline.
 	distinct := 0
 	for v := 1; v <= terminal.Version; v++ {
 		if seen[v] {
 			distinct++
 		}
 	}
-	if terminal.Version > 0 {
-		res.versionCoverage = float64(distinct) / float64(terminal.Version)
+	if distinct > 0 {
+		res.distinctNewSeen = distinct - 1
+	}
+	// Version coverage compares the new versions received with the versions
+	// committed after the baseline through the terminal version, so gaps lower
+	// the ratio (Section 6).
+	if span := terminal.Version - res.baselineVersion; span > 0 {
+		res.versionCoverage = float64(res.distinctNewSeen) / float64(span)
+	} else {
+		res.versionCoverage = 1
 	}
 
 	res.clientCompletedAt = logEventReturningNow(logEvent, res, terminal)
@@ -481,7 +525,30 @@ func terminalCommitTime(logPath, jobID, terminalStatus string) (time.Time, bool)
 	return latest, found
 }
 
-// appendCSV appends one result row, writing the fixed header first if needed.
+// runNotes records the timing semantics and applied workload controls for a
+// run, so the methods section can state exactly how each mode was driven.
+func runNotes(cfg config) string {
+	var parts []string
+	if cfg.mode == "short" {
+		parts = append(parts, fmt.Sprintf("short: %dms delay after each response, no overlapping requests", cfg.shortIntervalMS))
+	} else {
+		parts = append(parts, fmt.Sprintf("long: next request immediately after each active 200 or 204, wait=%ds", cfg.longWaitSeconds))
+	}
+	if cfg.quietDelayMS > 0 {
+		parts = append(parts, fmt.Sprintf("server quiet-delay=%dms (no intermediate updates)", cfg.quietDelayMS))
+	}
+	if cfg.simulateDurMS > 0 {
+		parts = append(parts, fmt.Sprintf("server simulated phase=%dms at %dms updates (labelled simulated, not real progress)", cfg.simulateDurMS, cfg.simulateIntMS))
+	}
+	if cfg.latencyMS > 0 {
+		parts = append(parts, fmt.Sprintf("client added %dms round-trip", cfg.latencyMS))
+	}
+	parts = append(parts, "detection = client receipt - server post-commit log time, joined by job id")
+	return strings.Join(parts, "; ")
+}
+
+// appendCSV appends one result row. The first columns are the exact set the
+// brief requires; the trailing columns add supporting detail.
 func appendCSV(path string, res *result) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
@@ -502,14 +569,15 @@ func appendCSV(path string, res *result) error {
 	defer w.Flush()
 
 	header := []string{
-		"run_id", "condition", "condition_label", "mode", "rep",
-		"quiet_delay_ms", "simulate_duration_ms", "simulate_interval_ms", "client_latency_ms",
-		"observation_started_at", "upload_ack_ms", "completion_detection_ms",
-		"processing_duration_ms", "job_duration_ms",
-		"initial_200", "newer_200", "unchanged_200", "no_content_204", "errors", "cancellations",
-		"total_requests", "version_first_seen", "version_last_seen", "version_final",
-		"version_coverage", "variants_completed", "status",
-		"server_completed_at", "client_completed_at",
+		"run_id", "condition", "mode", "repetition", "job_id", "image", "latency_setting",
+		"baseline_version", "terminal_version", "requests_started",
+		"initial_200", "newer_200", "unchanged_200", "no_change_204",
+		"retrieval_errors", "cancellations", "distinct_new_versions_seen",
+		"processing_ms", "detection_ms", "notes",
+		"observation_db_reads", "version_coverage", "job_duration_ms", "upload_ack_ms",
+		"prompt_get_ms", "variants_completed", "status",
+		"condition_label", "quiet_delay_ms", "simulate_duration_ms", "simulate_interval_ms",
+		"client_latency_ms", "observation_started_at", "server_completed_at", "client_completed_at",
 	}
 	if needHeader {
 		if err := w.Write(header); err != nil {
@@ -518,18 +586,15 @@ func appendCSV(path string, res *result) error {
 	}
 
 	row := []string{
-		res.runID, res.condition, res.label, res.mode, fmt.Sprintf("%d", res.rep),
-		fmt.Sprintf("%d", res.quietDelayMS), fmt.Sprintf("%d", res.simulateDurMS),
-		fmt.Sprintf("%d", res.simulateIntMS), fmt.Sprintf("%d", res.latencyMS),
-		res.observationStartAt, fmt.Sprintf("%.1f", res.uploadAckMS), fmt.Sprintf("%.1f", res.detectionMS),
-		fmt.Sprintf("%.1f", res.processingMS), fmt.Sprintf("%.1f", res.jobDurationMS),
-		fmt.Sprintf("%d", res.initial200), fmt.Sprintf("%d", res.newer200),
-		fmt.Sprintf("%d", res.unchanged200), fmt.Sprintf("%d", res.noContent204),
-		fmt.Sprintf("%d", res.errors), fmt.Sprintf("%d", res.cancellations),
-		fmt.Sprintf("%d", res.totalRequests), fmt.Sprintf("%d", res.versionFirstSeen),
-		fmt.Sprintf("%d", res.versionLastSeen), fmt.Sprintf("%d", res.versionFinal),
-		fmt.Sprintf("%.4f", res.versionCoverage), fmt.Sprintf("%d", res.variantsCompleted), res.status,
-		res.serverCompletedAt, res.clientCompletedAt,
+		res.runID, res.condition, res.mode, fmt.Sprintf("%d", res.rep), res.jobID, res.image, res.latencySetting,
+		fmt.Sprintf("%d", res.baselineVersion), fmt.Sprintf("%d", res.terminalVersion), fmt.Sprintf("%d", res.totalRequests),
+		fmt.Sprintf("%d", res.initial200), fmt.Sprintf("%d", res.newer200), fmt.Sprintf("%d", res.unchanged200),
+		fmt.Sprintf("%d", res.noContent204), fmt.Sprintf("%d", res.errors), fmt.Sprintf("%d", res.cancellations),
+		fmt.Sprintf("%d", res.distinctNewSeen), fmt.Sprintf("%.1f", res.processingMS), fmt.Sprintf("%.1f", res.detectionMS), res.notes,
+		fmt.Sprintf("%d", res.dbReads), fmt.Sprintf("%.4f", res.versionCoverage), fmt.Sprintf("%.1f", res.jobDurationMS),
+		fmt.Sprintf("%.1f", res.uploadAckMS), fmt.Sprintf("%.2f", res.promptGetMS), fmt.Sprintf("%d", res.variantsCompleted), res.status,
+		res.label, fmt.Sprintf("%d", res.quietDelayMS), fmt.Sprintf("%d", res.simulateDurMS), fmt.Sprintf("%d", res.simulateIntMS),
+		fmt.Sprintf("%d", res.latencyMS), res.observationStartAt, res.serverCompletedAt, res.clientCompletedAt,
 	}
 	return w.Write(row)
 }

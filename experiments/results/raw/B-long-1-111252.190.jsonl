@@ -1,0 +1,10 @@
+{"at":"2026-10-19T17:12:52.203132302Z","run":"B-long-1-111252.190","event":"ack","http":202,"version":1,"note":"41d75544-7ed0-49dc-974f-2bdd9baaccb0"}
+{"at":"2026-10-19T17:12:52.203194464Z","run":"B-long-1-111252.190","event":"request","seq":1,"mode":"long","note":"http://localhost:4000/v1/jobs/41d75544-7ed0-49dc-974f-2bdd9baaccb0"}
+{"at":"2026-10-19T17:12:52.203856712Z","run":"B-long-1-111252.190","event":"response","seq":1,"mode":"long","http":200,"version":1,"status":"queued"}
+{"at":"2026-10-19T17:12:52.203884449Z","run":"B-long-1-111252.190","event":"request","seq":2,"mode":"long","note":"http://localhost:4000/v1/jobs/41d75544-7ed0-49dc-974f-2bdd9baaccb0?after=1\u0026wait=20"}
+{"at":"2026-10-19T17:12:52.460489489Z","run":"B-long-1-111252.190","event":"response","seq":2,"mode":"long","http":200,"version":2,"status":"processing"}
+{"at":"2026-10-19T17:12:52.460741308Z","run":"B-long-1-111252.190","event":"request","seq":3,"mode":"long","note":"http://localhost:4000/v1/jobs/41d75544-7ed0-49dc-974f-2bdd9baaccb0?after=2\u0026wait=20"}
+{"at":"2026-10-19T17:12:52.583536613Z","run":"B-long-1-111252.190","event":"response","seq":3,"mode":"long","http":200,"version":4,"status":"processing"}
+{"at":"2026-10-19T17:12:52.583551859Z","run":"B-long-1-111252.190","event":"request","seq":4,"mode":"long","note":"http://localhost:4000/v1/jobs/41d75544-7ed0-49dc-974f-2bdd9baaccb0?after=4\u0026wait=20"}
+{"at":"2026-10-19T17:12:52.585440964Z","run":"B-long-1-111252.190","event":"response","seq":4,"mode":"long","http":200,"version":5,"status":"completed"}
+{"at":"2026-10-19T17:12:52.585450743Z","run":"B-long-1-111252.190","event":"terminal","http":200,"version":5,"status":"completed"}

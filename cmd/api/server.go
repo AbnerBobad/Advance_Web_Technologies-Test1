@@ -18,10 +18,10 @@ func (app *application) serve() error {
 	// The HTTP server with sane timeouts. Long-running processing belongs to
 	// the background worker, never inside a request, so requests stay short.
 	srv := &http.Server{
-		Addr:         fmt.Sprintf(":%d", app.config.port),
-		Handler:      app.routes(),
-		IdleTimeout:  time.Minute,
-		ReadTimeout:  5 * time.Second,
+		Addr:        fmt.Sprintf(":%d", app.config.port),
+		Handler:     app.routes(),
+		IdleTimeout: time.Minute,
+		ReadTimeout: 5 * time.Second,
 		// WriteTimeout must outlast the longest long-poll hold (20s) plus
 		// response time, otherwise the connection is torn down before a
 		// waiting observer can receive its answer (WAIT-03).
